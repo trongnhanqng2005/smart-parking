@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf` — pages 3–6; `CNTT_KLCN101_Tran Van Tho.md`; `Ket_Qua_Khao_Sat_Bai_Xe.md`  
-Implementation status: Enums are not yet implemented in JPA or schema.
+Implementation status: All 38 enum definitions are represented by Java enums and matching MySQL `ENUM` column literals in `V1__create_approved_schema.sql`; V1 is applied and Hibernate validation succeeds.
 
 ERD định nghĩa **38 enum types** dưới đây. Tên enum và literal được giữ nguyên chính tả/viết hoa. Ý nghĩa state/transition chỉ nêu khi business source chỉ rõ; trường hợp khác ghi đúng **“Detailed transition/business meaning not specified by approved sources.”**
 

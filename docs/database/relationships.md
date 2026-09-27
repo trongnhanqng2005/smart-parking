@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf` — pages 1–2 (tables and relationship diagram); `CNTT_KLCN101_Tran Van Tho.md`; `Ket_Qua_Khao_Sat_Bai_Xe.md`  
-Implementation status: Relationships are not yet represented by JPA mappings or a MySQL schema.
+Implementation status: ERD foreign keys are mapped by owning-side JPA associations and declared in `V1__create_approved_schema.sql`; all 71 documented FK constraints are applied to local MySQL.
 
 ## Reading Rules
 

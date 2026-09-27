@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf`, `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `backend/pom.xml`, `backend/src/`  
-Implementation status: ERD has not been implemented in backend; current `application.yaml` contains only the application name.
+Implementation status: The 38 feature-owned JPA entities and 38 Java enums are mapped to the approved ERD. Flyway V1 has been applied to the Laragon MySQL `smart_parking` database, and Hibernate schema validation succeeds.
 
 ## Approved Initial Design
 
@@ -34,14 +34,59 @@ Ownership là ranh giới package đề xuất theo kiến trúc dự án; khôn
 
 ```text
 approved business specification
-    -> JPA model
-    -> controlled Migration
-    -> MySQL schema
-    -> schema validation
+    -> owning features' JPA entities and enum mappings
+    -> reviewed Flyway V1 baseline (38 approved tables)
+    -> Flyway applies migration to MySQL
+    -> Flyway migration validation and Hibernate schema validation
     -> ERD / data documentation synchronization
 ```
 
-Code First là hướng phát triển. Entity/Migration được tạo khi feature được triển khai; tài liệu này không tạo Java, SQL hoặc migration. ERD không được phát triển như nguồn SQL độc lập và không được sửa âm thầm. Nếu cần điều chỉnh ERD, phải có phê duyệt của nhóm trước khi thay đổi implementation/source.
+Code First là hướng phát triển: JPA entity và Java enum được đặt theo feature owner và khớp tên bảng, cột, quan hệ, kiểu dữ liệu, composite key và enum literals trong tài liệu ERD. Migration `V1__create_approved_schema.sql` tạo baseline đầy đủ. Enum được lưu theo literal string bằng MySQL `ENUM` và Hibernate `SqlTypes.ENUM`; không đổi literal. Các association dùng owning-side `@ManyToOne`; hai bảng nối dùng `@EmbeddedId`/`@MapsId`. Hibernate chỉ kiểm tra schema với `ddl-auto: validate`, không tạo hoặc cập nhật schema. ERD không được phát triển như nguồn SQL độc lập và không được sửa âm thầm. Nếu cần điều chỉnh ERD, phải có phê duyệt của nhóm trước khi thay đổi implementation/source.
+
+### Local MySQL setup
+
+Chạy MySQL bằng Laragon và tạo database trước khi chạy backend. Ứng dụng không tự tạo database; tài khoản datasource cần quyền kết nối và quyền DDL cần thiết để Flyway áp dụng migration trong database đó.
+
+```sql
+CREATE DATABASE IF NOT EXISTS smart_parking;
+```
+
+Dùng một MySQL account local có quyền trên riêng database này. Flyway và ứng dụng dùng chung datasource, nên account cần quyền đọc/ghi runtime cùng quyền DDL để chạy migrations:
+
+```sql
+CREATE USER 'smart_parking_app'@'localhost' IDENTIFIED BY '<choose-a-local-password>';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP, INDEX, REFERENCES
+    ON smart_parking.* TO 'smart_parking_app'@'localhost';
+```
+
+Thay `<choose-a-local-password>` bằng password local do developer quản lý. Đặt các biến môi trường trong terminal dùng để chạy backend. URL dưới đây dùng Laragon MySQL trên `127.0.0.1:3306`. Spring Boot đọc các biến môi trường này trực tiếp; không commit credentials hoặc file môi trường có credentials.
+
+```powershell
+$env:SPRING_DATASOURCE_URL = "jdbc:mysql://127.0.0.1:3306/smart_parking"
+$env:SPRING_DATASOURCE_USERNAME = "smart_parking_app"
+$env:SPRING_DATASOURCE_PASSWORD = "<local-mysql-password>"
+```
+
+Chạy lệnh từ `backend/`:
+
+```powershell
+.\mvnw.cmd test
+.\mvnw.cmd spring-boot:run
+```
+
+Thiếu URL, username hoặc password environment variable sẽ làm cấu hình datasource thất bại thay vì chọn một database mặc định. Dùng credentials của tài khoản MySQL local đã cấu hình để kết nối `smart_parking`.
+
+### Flyway migration convention
+
+- Location: `backend/src/main/resources/db/migration/` (`classpath:db/migration`).
+- `V1__create_approved_schema.sql` là baseline chứa đủ 38 bảng đã duyệt; không tạo migration rỗng.
+- Đặt các thay đổi tiếp theo theo `V<VERSION>__<description>.sql`, bắt đầu từ `V2`; phối hợp version giữa các feature branch đang phát triển đồng thời.
+- Migration đã áp dụng là bất biến. Thay đổi schema tiếp theo phải dùng version mới; không sửa migration cũ. Lịch sử Flyway trên database là căn cứ phiên bản đã áp dụng.
+- Flyway áp dụng và kiểm tra migration trước khi Hibernate kiểm tra JPA mapping bằng `ddl-auto: validate`. Không dùng `schema.sql`/`data.sql` hay Hibernate để tạo schema.
+- PK, hai composite PK và các FK bám theo `relationships.md`. MySQL/InnoDB tự tạo supporting index nếu FK chưa có index phù hợp; không thêm secondary index khác không được nguồn duyệt.
+- Duy trì đồng bộ các thay đổi được duyệt giữa JPA, migration, MySQL schema và data dictionary/relationships/enums. Không tự bổ sung hoặc đổi concept, constraint hay cardinality chưa được ERD/nguồn duyệt xác định.
+
+`V1` hiện vật hóa toàn bộ initial ERD baseline; các feature branch sau chỉ thay đổi schema bằng version tiếp theo cho capability được duyệt. Không thêm nullability, default, UNIQUE, cascade, check constraint hoặc index ngoài PK/FK và supporting index MySQL yêu cầu.
 
 ## Constraints and Metadata
 
