@@ -1,0 +1,56 @@
+# Local OpenCode and agent tooling
+.opencode/
+AGENTS.md
+opencode.json
+codegraph.json
+.codegraph/
+
+# IDE and user-specific files
+.idea/
+.vs/
+.vscode/
+*.iml
+*.suo
+*.user
+*.csproj.user
+
+# Build output and local Python environments
+target/
+bin/
+obj/
+build/
+dist/
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Local environment files; keep safe templates
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Logs and runtime state
+*.log
+*.log.*
+logs/
+runtime/
+*.pid
+*.sock
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+
+# Secret and key material
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.token
+*.secret

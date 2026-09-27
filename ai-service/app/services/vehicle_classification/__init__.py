@@ -1,0 +1,1 @@
+"""Vehicle classification service package."""
