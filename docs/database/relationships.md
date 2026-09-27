@@ -14,7 +14,7 @@ Implementation status: ERD foreign keys are mapped by owning-side JPA associatio
 
 | Source table.field | Target | Semantic relationship | Workflow |
 |---|---|---|---|
-| `user_roles.user_id` | `users.id` | Association user–role | Đăng nhập/RBAC, mọi NV |
+| `user_roles.user_id` | `users.id` | Association user–role; V3 unique key permits at most one role per user | Đăng nhập/RBAC, mọi NV |
 | `user_roles.role_id` | `roles.id` | Association user–role | Đăng nhập/RBAC, mọi NV |
 | `role_permissions.role_id` | `roles.id` | Association role–permission | Đăng nhập/RBAC, mọi NV |
 | `role_permissions.permission_id` | `permissions.id` | Association role–permission | Đăng nhập/RBAC, mọi NV |

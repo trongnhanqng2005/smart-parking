@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "user_roles")
+@Table(name = "user_roles", uniqueConstraints = @jakarta.persistence.UniqueConstraint(name = "uk_user_roles_user_id", columnNames = "user_id"))
 @Getter
 @Setter
 public class UserRole {

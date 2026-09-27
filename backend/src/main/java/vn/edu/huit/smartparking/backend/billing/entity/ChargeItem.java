@@ -19,6 +19,7 @@ import org.hibernate.type.SqlTypes;
 @Setter
 public class ChargeItem {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

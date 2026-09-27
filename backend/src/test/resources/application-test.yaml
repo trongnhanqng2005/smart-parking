@@ -1,0 +1,9 @@
+smart-parking:
+  security:
+    jwt:
+      secret: test-only-smart-parking-hs256-key-at-least-256-bits
+    bootstrap:
+      # Used by isolated bootstrap tests; the full-context test runner does not create a MANAGEMENT user.
+      username: test.management
+      password: TestOnly-Management-Password-1
+      full-name: Test Management

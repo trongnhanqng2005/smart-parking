@@ -23,6 +23,7 @@ import vn.edu.huit.smartparking.backend.vehicle.enums.VehicleRelationType;
 @Setter
 public class VehicleResidentRelation {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

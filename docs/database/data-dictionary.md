@@ -8,45 +8,46 @@ Implementation status: All 38 table definitions are represented by feature-owned
 
 - ERD hiển thị 38 tables. Các cột và SQL type bên dưới được chép theo ERD.
 - `id bigint` là cột định danh được ERD hiển thị cho bảng có `id`; bảng nối giữ đúng hình thức ERD. FK được liệt kê trong [relationships](relationships.md).
-- Meaning là mô tả tên trường ở mức tài liệu. Nullability, default, UNIQUE, index, cascade và ý nghĩa chi tiết không nêu trong nguồn được ghi **Not specified by approved ERD**.
+- Meaning là mô tả tên trường ở mức tài liệu. Nullability, default, UNIQUE, index, cascade và ý nghĩa chi tiết không nêu trong nguồn được ghi **Not specified by approved ERD**, ngoại trừ các auth/RBAC thay đổi được phê duyệt và materialize trong V3.
 - Các trường chứa ảnh, định danh, face template, audit hoặc dữ liệu thanh toán cần được đọc cùng chính sách bảo vệ dữ liệu tại business docs; tài liệu này không ấn định retention.
 
 ## `users`
 
-**Purpose:** Tài khoản người dùng nội bộ. **Owner module:** `security`. **Primary key:** `id`. **NV:** nền tảng, NV07–08.
+**Purpose:** Tài khoản người dùng nội bộ. **Owner module:** `security`. **Primary key:** `id`. **NV:** nền tảng, NV07–08. V3 canonicalizes `username` by trim/lowercase, makes it non-null and unique, adds `credential_changed_at DATETIME(6)`, and changes the surrogate ID to `AUTO_INCREMENT`.
 
 | Column | ERD Type | Meaning |
 |---|---|---|
-| id | bigint | Định danh user. |
-| username | varchar(100) | Tên đăng nhập. |
+| id | bigint | Định danh user; V3 uses `AUTO_INCREMENT`. |
+| username | varchar(100) | Tên đăng nhập ở dạng trim/lowercase canonical; unique, non-null from V3. |
 | password_hash | varchar(255) | Password hash; nguồn yêu cầu băm mật khẩu. |
 | full_name | varchar(150) | Họ tên hiển thị. |
 | email | varchar(150) | Email. |
 | phone | varchar(30) | Số điện thoại. |
 | status | user_status | Trạng thái tài khoản. |
 | last_login_at | datetime | Thời điểm đăng nhập gần nhất. |
+| credential_changed_at | datetime(6) | Thời điểm đổi thông tin xác thực; V3 field used to invalidate previous JWTs and Web sessions. |
 | created_at | datetime | Thời điểm tạo. |
 | updated_at | datetime | Thời điểm cập nhật. |
 
 ## `roles`
 
-**Purpose:** Vai trò RBAC. **Owner module:** `security`. **Primary key:** `id`. **NV:** nền tảng.
+**Purpose:** Vai trò RBAC. **Owner module:** `security`. **Primary key:** `id`. **NV:** nền tảng. V3 makes `code` non-null/unique and `id` auto-generated; supported business role codes are `MANAGEMENT` and `GATE_STAFF`.
 
 | Column | ERD Type | Meaning |
 |---|---|---|
-| id | bigint | Định danh role. |
-| code | varchar(50) | Mã role. |
+| id | bigint | Định danh role; V3 uses `AUTO_INCREMENT`. |
+| code | varchar(50) | Mã role; non-null and unique from V3. |
 | name | varchar(100) | Tên role. |
 | description | varchar(255) | Mô tả role. |
 
 ## `permissions`
 
-**Purpose:** Quyền tác vụ/resource trong RBAC. **Owner module:** `security`. **Primary key:** `id`. **NV:** nền tảng, NV01–08.
+**Purpose:** Quyền tác vụ/resource trong RBAC. **Owner module:** `security`. **Primary key:** `id`. **NV:** nền tảng, NV01–08. V3 makes `code` non-null/unique and `id` auto-generated.
 
 | Column | ERD Type | Meaning |
 |---|---|---|
-| id | bigint | Định danh permission. |
-| code | varchar(100) | Mã permission. |
+| id | bigint | Định danh permission; V3 uses `AUTO_INCREMENT`. |
+| code | varchar(100) | Mã permission; non-null and unique from V3. |
 | name | varchar(150) | Tên permission. |
 | resource | varchar(100) | Resource permission áp dụng. |
 | action | varchar(50) | Action được mô tả. |
@@ -54,7 +55,7 @@ Implementation status: All 38 table definitions are represented by feature-owned
 
 ## `user_roles`
 
-**Purpose:** Liên kết user với role. **Owner module:** `security`. **Primary key:** Thành phần khóa theo ký hiệu ERD: `user_id`, `role_id`. **NV:** nền tảng.
+**Purpose:** Liên kết user với role. **Owner module:** `security`. **Primary key:** Thành phần khóa theo ký hiệu ERD: `user_id`, `role_id`. **NV:** nền tảng. V3 adds unique `user_id` so each user can have at most one business role; the composite primary key remains unchanged.
 
 | Column | ERD Type | Meaning |
 |---|---|---|
@@ -597,7 +598,7 @@ Implementation status: All 38 table definitions are represented by feature-owned
 
 ## `audit_logs`
 
-**Purpose:** Nhật ký hành động actor trên entity. **Owner module:** `audit`. **Primary key:** `id`. **NV:** NV01–08.
+**Purpose:** Nhật ký hành động actor trên entity. **Owner module:** `audit`. **Primary key:** `id`; V3 changes the surrogate ID to `AUTO_INCREMENT`. **NV:** NV01–08.
 
 | Column | ERD Type | Meaning |
 |---|---|---|

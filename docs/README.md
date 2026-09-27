@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`  
-Implementation status: Backend, gate desktop, and AI service are foundations only; approved business workflows are not implemented.
+Implementation status: Backend auth/RBAC is implemented as documented in [Authentication and RBAC](security/auth-rbac.md); approved NV01–NV08 business workflows are not implemented.
 
 ## Purpose
 
@@ -22,6 +22,7 @@ Các Markdown trong repository materialize những nguồn trên; khi chi tiết
 
 - [Tổng quan dự án](project/overview.md)
 - [Kiến trúc backend](architecture/backend-architecture.md)
+- [Backend authentication and RBAC](security/auth-rbac.md)
 - [Tổng quan nghiệp vụ NV01–NV08](business/business-overview.md)
 - Chi tiết nghiệp vụ:
   - [NV01 — Đăng ký căn hộ, cư dân và phương tiện](business/nv01-resident-vehicle-registration.md)

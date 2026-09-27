@@ -22,6 +22,7 @@ import vn.edu.huit.smartparking.backend.card.enums.CardType;
 @Setter
 public class Card {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

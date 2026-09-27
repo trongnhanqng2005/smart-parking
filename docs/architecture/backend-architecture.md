@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`, `backend/pom.xml`, `backend/src/`  
-Implementation status: Database foundation đã được triển khai với JPA entity/enum theo feature owner, Flyway V1 và Hibernate schema validation. Business workflow đã duyệt chưa được triển khai.
+Implementation status: Database and backend authentication/RBAC foundations are implemented. Approved NV01–NV08 business workflows remain unimplemented and are built incrementally as those capabilities are developed.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Implementation status: Database foundation đã được triển khai với JPA 
 - AI service là thành phần riêng; AI Inference trả nhận diện/độ tin cậy, backend chịu trách nhiệm quyết định nghiệp vụ và quyền cổng.
 - Không tách các module nghiệp vụ thành microservices.
 
-`backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` hiện có persistence entity theo module sở hữu trong ERD; repository, service, controller và business workflow chưa được triển khai.
+`backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` có persistence entities theo module sở hữu trong ERD. The authentication/RBAC foundation includes repositories, services, controllers and security configuration, audit integration, and persistence support. Repositories, services, and controllers for NV01–NV08 business capabilities are implemented incrementally as those capabilities are built.
 
 ## Base Package and Module Tree
 

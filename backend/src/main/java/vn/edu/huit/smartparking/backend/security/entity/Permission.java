@@ -8,15 +8,16 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "permissions")
+@Table(name = "permissions", uniqueConstraints = @jakarta.persistence.UniqueConstraint(name = "uk_permissions_code", columnNames = "code"))
 @Getter
 @Setter
 public class Permission {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "code", length = 100)
+    @Column(name = "code", length = 100, nullable = false)
     private String code;
 
     @Column(name = "name", length = 150)

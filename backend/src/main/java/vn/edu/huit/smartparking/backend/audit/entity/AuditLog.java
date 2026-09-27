@@ -19,6 +19,7 @@ import vn.edu.huit.smartparking.backend.security.entity.User;
 @Setter
 public class AuditLog {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

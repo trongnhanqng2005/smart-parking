@@ -17,6 +17,7 @@ import vn.edu.huit.smartparking.backend.resident.entity.Resident;
 @Setter
 public class FaceTemplate {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

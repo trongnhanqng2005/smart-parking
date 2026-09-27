@@ -19,6 +19,7 @@ import vn.edu.huit.smartparking.backend.gate.enums.StationStatus;
 @Setter
 public class GateStation {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

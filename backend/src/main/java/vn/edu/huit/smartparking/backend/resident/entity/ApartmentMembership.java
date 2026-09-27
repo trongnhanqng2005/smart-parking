@@ -22,6 +22,7 @@ import vn.edu.huit.smartparking.backend.resident.enums.MembershipRole;
 @Setter
 public class ApartmentMembership {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

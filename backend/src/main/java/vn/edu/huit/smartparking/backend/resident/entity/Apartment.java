@@ -19,6 +19,7 @@ import vn.edu.huit.smartparking.backend.resident.enums.ApartmentStatus;
 @Setter
 public class Apartment {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

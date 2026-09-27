@@ -23,6 +23,7 @@ import vn.edu.huit.smartparking.backend.vehicle.entity.VehicleFamily;
 @Setter
 public class VisitorPeriodRate {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 

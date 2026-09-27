@@ -22,6 +22,7 @@ import vn.edu.huit.smartparking.backend.media.enums.GateMediaPurpose;
 @Setter
 public class GateEventMedia {
     @Id
+    @jakarta.persistence.GeneratedValue(strategy = jakarta.persistence.GenerationType.IDENTITY)
     @Column(name = "id")
     private Long id;
 
