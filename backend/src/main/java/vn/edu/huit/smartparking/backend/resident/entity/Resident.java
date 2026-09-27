@@ -35,7 +35,7 @@ public class Resident {
     @Column(name = "phone", length = 30)
     private String phone;
 
-    @Column(name = "email", length = 100)
+    @Column(name = "email", length = 150)
     private String email;
 
     @Enumerated(EnumType.STRING)

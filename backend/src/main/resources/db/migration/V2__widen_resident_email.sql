@@ -1,0 +1,2 @@
+ALTER TABLE residents
+    MODIFY COLUMN email VARCHAR(150);

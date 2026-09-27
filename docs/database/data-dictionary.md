@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf` — pages 1–2; `CNTT_KLCN101_Tran Van Tho.md` — NV01–NV08; `Ket_Qua_Khao_Sat_Bai_Xe.md` — §1–5  
-Implementation status: All 38 table definitions are represented by feature-owned JPA entities and migration `V1__create_approved_schema.sql`; V1 is applied to the local MySQL database.
+Implementation status: All 38 table definitions are represented by feature-owned JPA entities and migration `V1__create_approved_schema.sql`; V1 and resident email length correction V2 are applied to the local MySQL database.
 
 ## Reading Notes
 

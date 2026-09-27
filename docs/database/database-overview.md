@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf`, `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `backend/pom.xml`, `backend/src/`  
-Implementation status: The 38 feature-owned JPA entities and 38 Java enums are mapped to the approved ERD. Flyway V1 has been applied to the Laragon MySQL `smart_parking` database, and Hibernate schema validation succeeds.
+Implementation status: The 38 feature-owned JPA entities and 38 Java enums are mapped to the approved ERD. Flyway V1 and the resident email width correction in V2 have been applied to the Laragon MySQL `smart_parking` database, and Hibernate schema validation succeeds.
 
 ## Approved Initial Design
 
@@ -41,7 +41,7 @@ approved business specification
     -> ERD / data documentation synchronization
 ```
 
-Code First là hướng phát triển: JPA entity và Java enum được đặt theo feature owner và khớp tên bảng, cột, quan hệ, kiểu dữ liệu, composite key và enum literals trong tài liệu ERD. Migration `V1__create_approved_schema.sql` tạo baseline đầy đủ. Enum được lưu theo literal string bằng MySQL `ENUM` và Hibernate `SqlTypes.ENUM`; không đổi literal. Các association dùng owning-side `@ManyToOne`; hai bảng nối dùng `@EmbeddedId`/`@MapsId`. Hibernate chỉ kiểm tra schema với `ddl-auto: validate`, không tạo hoặc cập nhật schema. ERD không được phát triển như nguồn SQL độc lập và không được sửa âm thầm. Nếu cần điều chỉnh ERD, phải có phê duyệt của nhóm trước khi thay đổi implementation/source.
+Code First là hướng phát triển: JPA entity và Java enum được đặt theo feature owner và khớp tên bảng, cột, quan hệ, kiểu dữ liệu, composite key và enum literals trong tài liệu ERD. Migration `V1__create_approved_schema.sql` tạo baseline đầy đủ; V2 áp dụng độ dài email cư dân 150 ký tự đã duyệt mà không sửa V1. Enum được lưu theo literal string bằng MySQL `ENUM` và Hibernate `SqlTypes.ENUM`; không đổi literal. Các association dùng owning-side `@ManyToOne`; hai bảng nối dùng `@EmbeddedId`/`@MapsId`. Hibernate chỉ kiểm tra schema với `ddl-auto: validate`, không tạo hoặc cập nhật schema. ERD không được phát triển như nguồn SQL độc lập và không được sửa âm thầm. Nếu cần điều chỉnh ERD, phải có phê duyệt của nhóm trước khi thay đổi implementation/source.
 
 ### Local MySQL setup
 
@@ -80,13 +80,13 @@ Thiếu URL, username hoặc password environment variable sẽ làm cấu hình
 
 - Location: `backend/src/main/resources/db/migration/` (`classpath:db/migration`).
 - `V1__create_approved_schema.sql` là baseline chứa đủ 38 bảng đã duyệt; không tạo migration rỗng.
-- Đặt các thay đổi tiếp theo theo `V<VERSION>__<description>.sql`, bắt đầu từ `V2`; phối hợp version giữa các feature branch đang phát triển đồng thời.
+- V2 đã sửa `residents.email` theo độ dài 150 ký tự được duyệt. Đặt các thay đổi tiếp theo theo `V<VERSION>__<description>.sql`, bắt đầu từ `V3`; phối hợp version giữa các feature branch đang phát triển đồng thời.
 - Migration đã áp dụng là bất biến. Thay đổi schema tiếp theo phải dùng version mới; không sửa migration cũ. Lịch sử Flyway trên database là căn cứ phiên bản đã áp dụng.
 - Flyway áp dụng và kiểm tra migration trước khi Hibernate kiểm tra JPA mapping bằng `ddl-auto: validate`. Không dùng `schema.sql`/`data.sql` hay Hibernate để tạo schema.
 - PK, hai composite PK và các FK bám theo `relationships.md`. MySQL/InnoDB tự tạo supporting index nếu FK chưa có index phù hợp; không thêm secondary index khác không được nguồn duyệt.
 - Duy trì đồng bộ các thay đổi được duyệt giữa JPA, migration, MySQL schema và data dictionary/relationships/enums. Không tự bổ sung hoặc đổi concept, constraint hay cardinality chưa được ERD/nguồn duyệt xác định.
 
-`V1` hiện vật hóa toàn bộ initial ERD baseline; các feature branch sau chỉ thay đổi schema bằng version tiếp theo cho capability được duyệt. Không thêm nullability, default, UNIQUE, cascade, check constraint hoặc index ngoài PK/FK và supporting index MySQL yêu cầu.
+`V1` hiện vật hóa toàn bộ initial ERD baseline; V2 chỉ sửa độ dài `residents.email`. Các feature branch sau chỉ thay đổi schema bằng version tiếp theo cho capability được duyệt. Không thêm nullability, default, UNIQUE, cascade, check constraint hoặc index ngoài PK/FK và supporting index MySQL yêu cầu.
 
 ## Constraints and Metadata
 

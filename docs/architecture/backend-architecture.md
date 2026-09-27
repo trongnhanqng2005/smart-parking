@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`, `backend/pom.xml`, `backend/src/`  
-Implementation status: Backend hiện chỉ là Spring Boot application skeleton; các module dưới đây là cấu trúc đã thống nhất cho triển khai tương lai.
+Implementation status: Database foundation đã được triển khai với JPA entity/enum theo feature owner, Flyway V1 và Hibernate schema validation. Business workflow đã duyệt chưa được triển khai.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Implementation status: Backend hiện chỉ là Spring Boot application skeleton
 - AI service là thành phần riêng; AI Inference trả nhận diện/độ tin cậy, backend chịu trách nhiệm quyết định nghiệp vụ và quyền cổng.
 - Không tách các module nghiệp vụ thành microservices.
 
-Hiện `backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` chưa có module nghiệp vụ.
+`backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` hiện có persistence entity theo module sở hữu trong ERD; repository, service, controller và business workflow chưa được triển khai.
 
 ## Base Package and Module Tree
 
