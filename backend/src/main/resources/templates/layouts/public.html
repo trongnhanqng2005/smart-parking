@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light" xmlns:th="http://www.thymeleaf.org"
+      th:fragment="layout(pageTitle, content)">
+<head th:replace="~{fragments/shared :: head(${pageTitle})}"></head>
+<body data-shell="public">
+  <a class="skip-link" href="#main-content">Bỏ qua đến nội dung chính</a>
+  <header th:replace="~{fragments/shared :: header}"></header>
+  <main id="main-content" tabindex="-1">
+    <th:block th:replace="${content}"></th:block>
+  </main>
+</body>
+</html>

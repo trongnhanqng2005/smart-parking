@@ -58,7 +58,9 @@ public class WebSessionSecurityFilter extends OncePerRequestFilter {
             reject(response, session);
             return;
         }
-        if (current.status() != UserStatus.ACTIVE
+        boolean managementRole = current.authorities().stream()
+                .anyMatch(authority -> "ROLE_MANAGEMENT".equals(authority.getAuthority()));
+        if (current.status() != UserStatus.ACTIVE || !managementRole
                 || !Objects.equals(JwtTokenService.credentialVersion(previous.credentialChangedAt()),
                         JwtTokenService.credentialVersion(current.credentialChangedAt()))) {
             reject(response, session);

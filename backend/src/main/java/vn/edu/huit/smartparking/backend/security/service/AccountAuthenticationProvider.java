@@ -86,6 +86,13 @@ public class AccountAuthenticationProvider implements AuthenticationProvider {
                         "{\"outcome\":\"DENIED\"}");
                 throw new BadCredentialsException("Authentication failed");
             }
+            if (isWebAuthentication(authentication) && !hasManagementRole(principal)) {
+                attempt.recordFailure();
+                recordAuthentication("AUTH_LOGIN_FAILURE", user.getId().toString(), user, authentication,
+                        "{\"outcome\":\"DENIED\",\"reason\":\"WEB_CHANNEL_ROLE_DENIED\"}");
+                throw new BadCredentialsException("Authentication failed");
+            }
+
             attempt.recordSuccess();
             user.setLastLoginAt(LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC));
             userRepository.save(user);
@@ -101,6 +108,16 @@ public class AccountAuthenticationProvider implements AuthenticationProvider {
     @Override
     public boolean supports(Class<?> authentication) {
         return UsernamePasswordAuthenticationToken.class.isAssignableFrom(authentication);
+    }
+
+    private boolean isWebAuthentication(Authentication authentication) {
+        return !(authentication.getDetails() instanceof AuthRequestDetails requestDetails)
+                || requestDetails.channel() != AuthRequestDetails.Channel.REST;
+    }
+
+    private boolean hasManagementRole(AuthenticatedAccount account) {
+        return account.authorities().stream()
+                .anyMatch(authority -> "ROLE_MANAGEMENT".equals(authority.getAuthority()));
     }
 
     private String sourceIp(Authentication authentication) {

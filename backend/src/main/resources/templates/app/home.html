@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layouts/authenticated :: layout('Khu vực Ban quản lý', ~{::homeContent})}">
+<section class="management-home" th:fragment="homeContent" aria-labelledby="management-home-title">
+  <header class="management-home__intro">
+    <p class="management-home__eyebrow">WORKSPACE / MANAGEMENT</p>
+    <h1 id="management-home-title">Khu vực Ban quản lý</h1>
+  </header>
+
+  <div class="management-home__bento">
+    <article class="management-tile management-tile--account" aria-labelledby="management-account-title">
+      <div class="management-tile__meta">
+        <i data-lucide="UserRound" aria-hidden="true"></i>
+        <span>TÀI KHOẢN HIỆN TẠI</span>
+      </div>
+      <h2 id="management-account-title" class="management-tile__username" th:text="${username}">manager</h2>
+      <div class="management-tile__role">
+        <i data-lucide="ShieldCheck" aria-hidden="true"></i>
+        <span th:text="${role}">MANAGEMENT</span>
+      </div>
+    </article>
+
+    <article class="management-tile management-tile--workspace" aria-labelledby="management-workspace-title">
+      <div class="management-tile__meta">
+        <i data-lucide="Building2" aria-hidden="true"></i>
+        <span>WORKSPACE / WEB</span>
+      </div>
+      <h2 id="management-workspace-title">Smart Parking</h2>
+      <p>Giao diện Web dành cho Ban quản lý.</p>
+    </article>
+  </div>
+</section>
+</html>

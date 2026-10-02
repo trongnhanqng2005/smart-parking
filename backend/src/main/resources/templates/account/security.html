@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layouts/authenticated :: layout('Bảo mật tài khoản | Smart Parking', ~{::accountSecurityContent})}">
+<section class="account-security" th:fragment="accountSecurityContent" aria-labelledby="account-security-title">
+  <header class="account-security__intro">
+    <a class="account-security__back" th:href="@{/}">
+      <i data-lucide="ArrowLeft" aria-hidden="true"></i>
+      <span>Khu vực Ban quản lý</span>
+    </a>
+    <p class="account-security__eyebrow">BẢO MẬT / TÀI KHOẢN</p>
+    <h1 id="account-security-title">Đổi mật khẩu</h1>
+    <p>Cập nhật mật khẩu cho tài khoản Ban quản lý.</p>
+  </header>
+
+  <div class="account-security__layout">
+    <form class="account-security__form" data-password-change-form aria-labelledby="account-security-title"
+          th:action="@{/web/auth/change-password}" th:data-login-url="@{/login}"
+          method="post">
+      <div class="access-field">
+        <label for="current-password">Mật khẩu hiện tại</label>
+        <div class="access-field__control access-field__control--password">
+          <i data-lucide="LockKeyhole" aria-hidden="true"></i>
+          <input id="current-password" name="current_password" type="password"
+                 autocomplete="current-password" maxlength="72" required
+                 aria-describedby="current-password-error">
+          <button type="button" class="access-password__toggle" data-password-toggle
+                  data-show-label="Hiện mật khẩu hiện tại" data-hide-label="Ẩn mật khẩu hiện tại"
+                  aria-controls="current-password" aria-pressed="false" aria-label="Hiện mật khẩu hiện tại">
+            <i data-lucide="Eye" aria-hidden="true"></i>
+            <i data-lucide="EyeOff" aria-hidden="true" hidden></i>
+            <span class="sr-only" data-password-toggle-label>Hiện mật khẩu hiện tại</span>
+          </button>
+        </div>
+        <p class="account-security__field-error" id="current-password-error" data-password-error="current_password"
+           aria-live="polite" aria-atomic="true"></p>
+      </div>
+
+      <div class="access-field">
+        <label for="new-password">Mật khẩu mới</label>
+        <div class="access-field__control access-field__control--password">
+          <i data-lucide="KeyRound" aria-hidden="true"></i>
+          <input id="new-password" name="new_password" type="password"
+                 autocomplete="new-password" maxlength="72" required
+                 aria-describedby="new-password-guidance new-password-error">
+          <button type="button" class="access-password__toggle" data-password-toggle
+                  data-show-label="Hiện mật khẩu mới" data-hide-label="Ẩn mật khẩu mới"
+                  aria-controls="new-password" aria-pressed="false" aria-label="Hiện mật khẩu mới">
+            <i data-lucide="Eye" aria-hidden="true"></i>
+            <i data-lucide="EyeOff" aria-hidden="true" hidden></i>
+            <span class="sr-only" data-password-toggle-label>Hiện mật khẩu mới</span>
+          </button>
+        </div>
+        <p class="account-security__field-hint" id="new-password-guidance">
+          Ít nhất 10 ký tự Unicode, tối đa 72 byte UTF-8.
+        </p>
+        <p class="account-security__field-error" id="new-password-error" data-password-error="new_password"
+           aria-live="polite" aria-atomic="true"></p>
+      </div>
+
+      <div class="access-field">
+        <label for="password-confirmation">Xác nhận mật khẩu mới</label>
+        <div class="access-field__control access-field__control--password">
+          <i data-lucide="KeyRound" aria-hidden="true"></i>
+          <input id="password-confirmation" name="confirmation" type="password"
+                 autocomplete="new-password" maxlength="72" required
+                 aria-describedby="password-confirmation-error">
+          <button type="button" class="access-password__toggle" data-password-toggle
+                  data-show-label="Hiện xác nhận mật khẩu mới" data-hide-label="Ẩn xác nhận mật khẩu mới"
+                  aria-controls="password-confirmation" aria-pressed="false" aria-label="Hiện xác nhận mật khẩu mới">
+            <i data-lucide="Eye" aria-hidden="true"></i>
+            <i data-lucide="EyeOff" aria-hidden="true" hidden></i>
+            <span class="sr-only" data-password-toggle-label>Hiện xác nhận mật khẩu mới</span>
+          </button>
+        </div>
+        <p class="account-security__field-error" id="password-confirmation-error" data-password-error="confirmation"
+           aria-live="polite" aria-atomic="true"></p>
+      </div>
+
+      <p id="password-change-feedback" class="access-feedback" data-password-feedback
+         role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p>
+
+      <button type="submit" class="access-submit" data-password-submit>
+        <span data-password-submit-label>Cập nhật mật khẩu</span>
+        <i data-lucide="ArrowRight" aria-hidden="true"></i>
+      </button>
+    </form>
+
+    <aside class="account-security__guidance" aria-labelledby="password-guidance-title">
+      <div class="account-security__guidance-icon"><i data-lucide="ShieldCheck" aria-hidden="true"></i></div>
+      <h2 id="password-guidance-title">Yêu cầu mật khẩu mới</h2>
+      <ul>
+        <li>Ít nhất 10 ký tự Unicode.</li>
+        <li>Tối đa 72 byte UTF-8.</li>
+        <li>Khác mật khẩu hiện tại.</li>
+      </ul>
+      <p>Sau khi cập nhật, bạn sẽ cần đăng nhập lại.</p>
+    </aside>
+  </div>
+  <script type="module" th:src="@{/assets/account-security.js}"></script>
+</section>
+</html>

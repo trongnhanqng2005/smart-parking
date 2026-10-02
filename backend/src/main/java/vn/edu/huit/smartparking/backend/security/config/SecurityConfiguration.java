@@ -6,6 +6,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,6 +19,19 @@ import vn.edu.huit.smartparking.backend.security.service.CurrentJwtAuthenticatio
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfiguration {
+    private static final String WEB_CONTENT_SECURITY_POLICY = String.join("; ",
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self'",
+            "img-src 'self'",
+            "font-src 'self'",
+            "connect-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-src 'none'",
+            "frame-ancestors 'none'");
+
     @Bean
     FilterRegistrationBean<WebSessionSecurityFilter> webSessionFilterRegistration(WebSessionSecurityFilter filter) {
         FilterRegistrationBean<WebSessionSecurityFilter> registration = new FilterRegistrationBean<>(filter);
@@ -55,7 +69,8 @@ public class SecurityConfiguration {
             AuthRequestDetailsSource detailsSource) throws Exception {
         http.authenticationManager(authenticationManager)
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/login", "/error").permitAll()
+                        .requestMatchers("/login", "/error", "/assets/**").permitAll()
+                        .requestMatchers("/").hasRole("MANAGEMENT")
                         .anyRequest().authenticated())
                 .formLogin(form -> form
                         .loginPage("/login")
@@ -73,8 +88,17 @@ public class SecurityConfiguration {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .sessionFixation(fixation -> fixation.changeSessionId()))
                 .csrf(withDefaults())
+                .headers(headers -> headers.contentSecurityPolicy(
+                        csp -> csp.policyDirectives(WEB_CONTENT_SECURITY_POLICY)))
                 .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint((request, response, exception) -> response.sendError(401))
+                        .authenticationEntryPoint((request, response, exception) -> {
+                            String requestPath = request.getRequestURI().substring(request.getContextPath().length());
+                            if (HttpMethod.GET.matches(request.getMethod()) && "/".equals(requestPath)) {
+                                response.sendRedirect(request.getContextPath() + "/login");
+                            } else {
+                                response.sendError(401);
+                            }
+                        })
                         .accessDeniedHandler((request, response, exception) -> response.sendError(403)))
                 .addFilterAfter(sessionSecurityFilter, SecurityContextHolderFilter.class);
         return http.build();

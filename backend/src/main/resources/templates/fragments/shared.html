@@ -1,0 +1,41 @@
+<th:block th:fragment="headContent(pageTitle)" xmlns:th="http://www.thymeleaf.org">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#EAF2F9">
+  <title th:text="${pageTitle}">Smart Parking</title>
+  <script th:src="@{/assets/theme-bootstrap.js}"></script>
+  <link rel="stylesheet" th:href="@{/assets/app.css}">
+  <link rel="icon" type="image/svg+xml" th:href="@{/assets/smart-parking-mark.svg}">
+  <script type="module" th:src="@{/assets/app.js}"></script>
+</th:block>
+
+<head th:fragment="head(pageTitle)" xmlns:th="http://www.thymeleaf.org">
+  <th:block th:replace="~{fragments/shared :: headContent(${pageTitle})}"></th:block>
+</head>
+
+<header class="app-header" th:fragment="header"
+        xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+  <span class="app-brand" translate="no">
+    <span class="app-brand__mark" aria-hidden="true"></span>
+    <span>Smart Parking</span>
+  </span>
+  <div class="app-header__actions">
+    <a class="app-header__security-link" sec:authorize="isAuthenticated()"
+       th:href="@{/account/security}" aria-label="Bảo mật tài khoản" title="Bảo mật tài khoản">
+      <i data-lucide="KeyRound" aria-hidden="true"></i>
+      <span>Bảo mật tài khoản</span>
+    </a>
+    <form class="app-header__logout-form" sec:authorize="isAuthenticated()"
+          th:action="@{/logout}" th:data-login-url="@{/login}" method="post" data-logout-form>
+      <button type="submit" class="app-header__logout-button" aria-label="Đăng xuất" title="Đăng xuất">
+        <i data-lucide="LogOut" aria-hidden="true"></i>
+        <span data-logout-label>Đăng xuất</span>
+      </button>
+      <span class="app-header__logout-feedback" data-logout-feedback role="status"
+            aria-live="polite" aria-atomic="true"></span>
+    </form>
+    <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="false" aria-label="Chuyển giao diện sáng/tối">
+      <span data-theme-toggle-label>Giao diện</span>
+    </button>
+  </div>
+</header>

@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`  
-Implementation status: Backend auth/RBAC is implemented as documented in [Authentication and RBAC](security/auth-rbac.md); approved NV01–NV08 business workflows are not implemented.
+Implementation status: Backend authentication/RBAC and the server-rendered MANAGEMENT Web foundation (public sign-in and MANAGEMENT-protected application routes) are implemented as documented in [Authentication and RBAC](security/auth-rbac.md) and [Backend Architecture](architecture/backend-architecture.md); approved NV01–NV08 business workflows are not implemented.
 
 ## Purpose
 

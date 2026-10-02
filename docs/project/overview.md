@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, repository foundation  
-Implementation status: Business workflows not implemented; repository contains starter projects described below.
+Implementation status: Backend authentication/RBAC and the server-rendered MANAGEMENT Web foundation (public sign-in and MANAGEMENT-protected application routes) are implemented. Approved NV01–NV08 business workflows remain unimplemented.
 
 ## Project Objective
 
@@ -13,11 +13,11 @@ Nguồn: `CNTT_KLCN101_Tran Van Tho.md` — Mục tiêu §5; Yêu cầu §6.
 
 | Thành phần | Vai trò theo nguồn | Hiện trạng repository |
 |---|---|---|
-| Spring Boot backend | REST API JSON dùng chung; nghiệp vụ, persistence và kết nối Web/Desktop | Skeleton ứng dụng; chưa có endpoint nghiệp vụ. |
-| Thymeleaf Web management | Giao diện Ban quản lý để quản trị, tra cứu, dashboard và báo cáo | Dependencies có mặt trong `backend/pom.xml`; chưa thấy trang nghiệp vụ. |
+| Spring Boot backend | REST API JSON dùng chung; nghiệp vụ, persistence và kết nối Web/Desktop | Authentication/RBAC, REST authentication và MANAGEMENT Web foundation; chưa có endpoint nghiệp vụ NV01–NV08. |
+| Thymeleaf Web management | Giao diện Ban quản lý để quản trị, tra cứu, dashboard và báo cáo | Có trang đăng nhập MANAGEMENT, trang home được bảo vệ và trang bảo mật tài khoản; các màn hình nghiệp vụ NV01–NV08 chưa được triển khai. |
 | C# .NET WinForms gate desktop | Máy trạm trạm gác; kết nối backend, giao tiếp các luồng tại cổng | WinForms form mẫu; project target hiện tại `net10.0-windows`. |
 | Python FastAPI AI service | Dịch vụ AI độc lập cho ANPR/OCR, phân loại xe, face matching và liveness theo yêu cầu | README xác nhận mới có foundation/health; chưa có model hoặc inference. |
-| MySQL / Laragon | Database quan hệ, transaction, ràng buộc, index và backup/restore | Connector có trong backend; chưa có cấu hình kết nối trong `application.yaml`. |
+| MySQL / Laragon | Database quan hệ, transaction, ràng buộc, index và backup/restore | Connector có trong backend; connection URL, username và password được cung cấp qua các environment variables được tham chiếu trong `application.yaml`. |
 
 Nguồn: đề cương §5–7; repository `backend/pom.xml`, `backend/src/main/resources/application.yaml`, `gate-desktop/src/SmartParking.GateDesktop/SmartParking.GateDesktop.csproj`, `ai-service/README.md`.
 
@@ -25,6 +25,7 @@ Nguồn: đề cương §5–7; repository `backend/pom.xml`, `backend/src/main/
 
 - Java 21, Spring Boot 4.1.1, Maven — `backend/pom.xml`.
 - Spring Data JPA/Hibernate, Spring Security, Thymeleaf, Spring Web MVC và Validation — dependencies trong `backend/pom.xml`; Hibernate là JPA provider theo stack dự án.
+- Node.js 24.21.0/npm 11.19.0, Vite, Tailwind CSS và Lucide — frontend asset build trong `backend/`, được Maven tích hợp; chi tiết ở [kiến trúc backend](../architecture/backend-architecture.md).
 - MySQL — connector dependency có trong backend; đề cương yêu cầu MySQL chạy qua Laragon.
 - C# .NET WinForms — project hiện target `net10.0-windows`; đề cương xác nhận WinForms nhưng không ấn định version .NET.
 - Python 3.12, FastAPI — `ai-service/README.md` và đề cương §7.

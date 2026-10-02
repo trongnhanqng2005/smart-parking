@@ -13,6 +13,10 @@ public class AuthRequestDetailsSource implements AuthenticationDetailsSource<Htt
         if (requestId != null && requestId.length() > 100) {
             requestId = null;
         }
-        return new AuthRequestDetails(request.getRemoteAddr(), requestId);
+        String requestPath = request.getRequestURI().substring(request.getContextPath().length());
+        AuthRequestDetails.Channel channel = requestPath.startsWith("/api/")
+                ? AuthRequestDetails.Channel.REST
+                : AuthRequestDetails.Channel.WEB;
+        return new AuthRequestDetails(request.getRemoteAddr(), requestId, channel);
     }
 }

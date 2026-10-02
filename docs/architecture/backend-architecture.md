@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`, `backend/pom.xml`, `backend/src/`  
-Implementation status: Database and backend authentication/RBAC foundations are implemented. Approved NV01–NV08 business workflows remain unimplemented and are built incrementally as those capabilities are developed.
+Implementation status: Database, authentication/RBAC, and the server-rendered MANAGEMENT Web foundation (public sign-in and MANAGEMENT-protected application routes) are implemented. Approved NV01–NV08 business workflows remain unimplemented and are built incrementally as those capabilities are developed.
 
 ## Architecture
 
@@ -13,6 +13,20 @@ Implementation status: Database and backend authentication/RBAC foundations are 
 - Không tách các module nghiệp vụ thành microservices.
 
 `backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` có persistence entities theo module sở hữu trong ERD. The authentication/RBAC foundation includes repositories, services, controllers and security configuration, audit integration, and persistence support. Repositories, services, and controllers for NV01–NV08 business capabilities are implemented incrementally as those capabilities are built.
+
+## Management Web Foundation
+
+The `security` feature owns the current server-rendered authentication pages and their controllers:
+
+| Route | Access | View |
+|---|---|---|
+| `GET /login` | Public; authenticated MANAGEMENT users are redirected to `/` | `templates/auth/login.html` |
+| `GET /` | MANAGEMENT only | `templates/app/home.html` |
+| `GET /account/security` | MANAGEMENT and `SECURITY_CHANGE_OWN_PASSWORD` required | `templates/account/security.html` |
+
+The public login layout and authenticated application layout are `templates/layouts/public.html` and `templates/layouts/authenticated.html`; they share the head and header fragment. The authenticated header provides the account-security link and CSRF-protected logout form. Existing Web POST contracts are documented in [Authentication and RBAC](../security/auth-rbac.md). These pages provide authentication and workspace orientation only; NV01–NV08 business workflows are not implemented.
+
+Authored frontend sources live under `backend/src/main/resources/web/`. Vite, configured from `backend/vite.config.js`, emits generated resources under `backend/target/generated-resources/static/`; Maven excludes authored `web/**` from normal resource copying and adds the generated resource tree to the classpath. Runtime assets are served from `/assets/**` and packaged under `static/assets/`. The `frontend-maven-plugin` runs the pinned Node.js 24.21.0/npm 11.19.0 install and frontend build during `generate-resources`. The asset pipeline is part of the existing Spring Boot deployable; it is not a separate frontend application.
 
 ## Base Package and Module Tree
 

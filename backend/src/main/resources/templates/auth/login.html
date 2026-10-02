@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layouts/public :: layout('Đăng nhập | Smart Parking', ~{::loginContent})}">
+<div class="spatial-login" th:fragment="loginContent">
+  <div class="mobility-model" aria-hidden="true">
+    <div class="mobility-model__aura"></div>
+    <div class="mobility-model__orbit mobility-model__orbit--outer"></div>
+    <div class="mobility-model__orbit mobility-model__orbit--inner"></div>
+    <div class="mobility-model__volume">
+      <div class="mobility-model__slab mobility-model__slab--foundation"></div>
+      <div class="mobility-model__slab mobility-model__slab--lower"></div>
+      <div class="mobility-model__slab mobility-model__slab--upper"></div>
+      <div class="mobility-model__route mobility-model__route--one"></div>
+      <div class="mobility-model__route mobility-model__route--two"></div>
+      <div class="mobility-model__node mobility-model__node--one"><i data-lucide="Waypoints"></i></div>
+      <div class="mobility-model__node mobility-model__node--two"><i data-lucide="CarFront"></i></div>
+      <div class="mobility-model__node mobility-model__node--three"></div>
+    </div>
+  </div>
+
+  <section class="access-panel" aria-labelledby="login-form-title">
+    <div class="access-panel__topline">
+      <span class="access-panel__identity">
+        <span class="access-panel__mark" aria-hidden="true"></span>
+        <span>Smart Parking</span>
+      </span>
+      <span class="access-panel__mode"><i data-lucide="ShieldCheck" aria-hidden="true"></i> MANAGEMENT</span>
+    </div>
+
+    <div class="access-panel__content">
+      <p class="access-panel__eyebrow">CỔNG ĐIỀU HÀNH / WEB</p>
+      <h1 id="login-form-title">Đăng nhập</h1>
+      <p class="access-panel__description">Dành cho tài khoản Ban quản lý Smart Parking.</p>
+
+      <form id="login-form" class="access-form" data-login-form th:action="@{/login}" th:data-home-url="@{/}"
+            method="post">
+        <div class="access-field">
+          <label for="username">Tên đăng nhập <span aria-hidden="true">*</span></label>
+          <div class="access-field__control">
+            <i data-lucide="UserRound" aria-hidden="true"></i>
+            <input id="username" name="username" type="text" autocomplete="username"
+                   autocapitalize="none" autocorrect="off" spellcheck="false" required
+                   aria-describedby="login-feedback">
+          </div>
+        </div>
+
+        <div class="access-field">
+          <label for="password">Mật khẩu <span aria-hidden="true">*</span></label>
+          <div class="access-field__control access-field__control--password">
+            <i data-lucide="LockKeyhole" aria-hidden="true"></i>
+            <input id="password" name="password" type="password" autocomplete="current-password"
+                   required aria-describedby="login-feedback">
+            <button type="button" class="access-password__toggle" data-password-toggle
+                    aria-controls="password" aria-pressed="false" aria-label="Hiện mật khẩu">
+              <i data-lucide="Eye" aria-hidden="true"></i>
+              <i data-lucide="EyeOff" aria-hidden="true"></i>
+              <span class="sr-only" data-password-toggle-label>Hiện mật khẩu</span>
+            </button>
+          </div>
+        </div>
+
+        <p id="login-feedback" class="access-feedback" data-login-feedback role="status"
+           aria-live="polite" aria-atomic="true" tabindex="-1"></p>
+
+        <button type="submit" class="access-submit" data-login-submit>
+          <span data-login-submit-label>Đăng nhập</span>
+          <i data-lucide="ArrowRight" aria-hidden="true"></i>
+        </button>
+      </form>
+    </div>
+
+  </section>
+
+  <script type="module" th:src="@{/assets/login.js}"></script>
+</div>
+</html>

@@ -1,11 +1,14 @@
 package vn.edu.huit.smartparking.backend.security.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,10 +30,10 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import vn.edu.huit.smartparking.backend.audit.service.AuditService;
@@ -56,7 +59,8 @@ class AccountAuthenticationProviderTests {
                 Clock.fixed(Instant.parse("2026-09-27T10:00:00Z"), ZoneOffset.UTC));
         UsernamePasswordAuthenticationToken request = UsernamePasswordAuthenticationToken.unauthenticated(
                 " Gate.Staff ", "valid-password-1");
-        request.setDetails(new AuthRequestDetails("192.0.2.10", "request-7"));
+        request.setDetails(new AuthRequestDetails(
+                "192.0.2.10", "request-7", AuthRequestDetails.Channel.REST));
         Authentication result = provider.authenticate(request);
 
         assertTrue(result.isAuthenticated());
@@ -64,6 +68,66 @@ class AccountAuthenticationProviderTests {
         assertEquals(Instant.parse("2026-09-27T10:00:00Z"), user.getLastLoginAt().toInstant(ZoneOffset.UTC));
         verify(audit).record("AUTH_LOGIN_SUCCESS", "AUTHENTICATION", "3", user, null,
                 "{\"outcome\":\"SUCCESS\"}", "request-7", "192.0.2.10");
+    }
+
+    @Test
+    void rejectsValidGateStaffCredentialsOnWebAndCountsThemAsFailures() {
+        User user = user("gate.staff", UserStatus.ACTIVE, "stored-hash");
+        UserRepository users = mock(UserRepository.class);
+        SecurityAccountService accounts = mock(SecurityAccountService.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        AuditService audit = mock(AuditService.class);
+        LoginAttemptThrottle throttle = new LoginAttemptThrottle(
+                Clock.systemUTC(), 5, Duration.ofMinutes(15));
+        when(users.findByUsername("gate.staff")).thenReturn(Optional.of(user));
+        when(encoder.encode(any(CharSequence.class))).thenReturn("dummy-hash");
+        when(encoder.matches("valid-password-1", "stored-hash")).thenReturn(true);
+        when(accounts.load(user)).thenReturn(new AuthenticatedAccount(3L, "gate.staff", UserStatus.ACTIVE, null,
+                List.of(new SimpleGrantedAuthority("ROLE_GATE_STAFF"))));
+        AccountAuthenticationProvider provider = new AccountAuthenticationProvider(
+                users, accounts, encoder, throttle, audit, Clock.systemUTC());
+
+        for (int attempt = 0; attempt < 5; attempt++) {
+            BadCredentialsException error = assertThrows(BadCredentialsException.class,
+                    () -> provider.authenticate(webLogin("valid-password-1")));
+            assertEquals("Authentication failed", error.getMessage());
+        }
+
+        assertThrows(LoginThrottledException.class,
+                () -> provider.authenticate(webLogin("valid-password-1")));
+
+        assertNull(user.getLastLoginAt());
+        verify(users, never()).save(user);
+        verify(encoder, times(5)).matches("valid-password-1", "stored-hash");
+        verify(audit, times(5)).record("AUTH_LOGIN_FAILURE", "AUTHENTICATION", "3", user, null,
+                "{\"outcome\":\"DENIED\",\"reason\":\"WEB_CHANNEL_ROLE_DENIED\"}", null, "192.0.2.10");
+        verify(audit, never()).record(eq("AUTH_LOGIN_SUCCESS"), any(), any(), any(), any(), any(), any(), any());
+        verify(audit).record("AUTH_LOGIN_THROTTLED", "AUTHENTICATION", "gate.staff", null, null,
+                "{\"outcome\":\"THROTTLED\"}", null, "192.0.2.10");
+    }
+
+    @Test
+    void permitsManagementCredentialsOnWebAndPerformsSuccessfulLoginSideEffects() {
+        PasswordEncoder encoder = new BCryptPasswordEncoder(12);
+        User user = user("manager", UserStatus.ACTIVE, encoder.encode("valid-password-1"));
+        UserRepository users = mock(UserRepository.class);
+        SecurityAccountService accounts = mock(SecurityAccountService.class);
+        AuditService audit = mock(AuditService.class);
+        when(users.findByUsername("manager")).thenReturn(Optional.of(user));
+        when(accounts.load(user)).thenReturn(new AuthenticatedAccount(3L, "manager", UserStatus.ACTIVE, null,
+                List.of(new SimpleGrantedAuthority("ROLE_MANAGEMENT"))));
+        AccountAuthenticationProvider provider = new AccountAuthenticationProvider(
+                users, accounts, encoder,
+                new LoginAttemptThrottle(Clock.systemUTC(), 5, Duration.ofMinutes(15)),
+                audit, Clock.fixed(Instant.parse("2026-09-27T10:00:00Z"), ZoneOffset.UTC));
+
+        Authentication result = provider.authenticate(webLogin("manager", "valid-password-1"));
+
+        assertTrue(result.isAuthenticated());
+        assertEquals(Instant.parse("2026-09-27T10:00:00Z"), user.getLastLoginAt().toInstant(ZoneOffset.UTC));
+        verify(users).save(user);
+        verify(audit).record("AUTH_LOGIN_SUCCESS", "AUTHENTICATION", "3", user, null,
+                "{\"outcome\":\"SUCCESS\"}", null, "192.0.2.10");
     }
 
     @Test
@@ -187,13 +251,25 @@ class AccountAuthenticationProviderTests {
             AccountAuthenticationProvider provider, String password, String sourceIp) {
         UsernamePasswordAuthenticationToken request = UsernamePasswordAuthenticationToken.unauthenticated(
                 "gate.staff", password);
-        request.setDetails(new AuthRequestDetails(sourceIp, null));
+        request.setDetails(new AuthRequestDetails(sourceIp, null, AuthRequestDetails.Channel.REST));
         try {
             provider.authenticate(request);
             return null;
         } catch (AuthenticationException exception) {
             return exception;
         }
+    }
+
+    private UsernamePasswordAuthenticationToken webLogin(String password) {
+        return webLogin("gate.staff", password);
+    }
+
+    private UsernamePasswordAuthenticationToken webLogin(String username, String password) {
+        UsernamePasswordAuthenticationToken request = UsernamePasswordAuthenticationToken.unauthenticated(
+                username, password);
+        request.setDetails(new AuthRequestDetails(
+                "192.0.2.10", null, AuthRequestDetails.Channel.WEB));
+        return request;
     }
 
     private User user(String username, UserStatus status, String passwordHash) {

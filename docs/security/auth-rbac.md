@@ -4,7 +4,7 @@ Status: Implemented backend capability; the authentication and schema decisions 
 
 ## Purpose and business context
 
-This capability authenticates internal Smart Parking operators and applies one server-side identity and permission model to the Thymeleaf Web application and external REST clients such as the future WinForms client. Its security boundary establishes **who** made a request and what assigned permission/context the user has. A JWT, role or AI result never decides whether a vehicle may cross a gate.
+This capability authenticates internal Smart Parking operators and applies one server-side identity and permission model to the Thymeleaf Web application and external REST clients such as the future WinForms client, with channel-specific authentication boundaries. Web authentication is for MANAGEMENT; REST authentication supports MANAGEMENT and GATE_STAFF. Its security boundary establishes **who** made a request and what assigned permission/context the user has. A JWT, role or AI result never decides whether a vehicle may cross a gate.
 
 The backend remains a Spring Boot modular monolith. `security` owns users and RBAC; `audit` owns action records; `gate` owns shifts and later gate authorization. See [backend architecture](../architecture/backend-architecture.md).
 
@@ -26,7 +26,7 @@ Role membership is resolved from `user_roles`; permissions are resolved from `ro
 
 | Capability boundary | MANAGEMENT | GATE_STAFF | Implemented now |
 |---|---|---|---|
-| Authenticate and authenticated logout | Yes, if ACTIVE | Yes, if ACTIVE | Yes |
+| Authenticate and authenticated logout | Web and REST, if ACTIVE | REST/WinForms only, if ACTIVE; Web login denied | Yes; Web is MANAGEMENT-only |
 | Change own password | Yes, with current password | Yes, with current password | Yes; `SECURITY_CHANGE_OWN_PASSWORD` is assigned to both roles |
 | Operate gate/shift | Only with the management user assigned to an open shift for the requested lane | Only with the user assigned to an open shift for the requested lane | Shared `ShiftAuthorizationService` boundary only; no gate endpoint |
 | Review management-required exceptions / resolve offline conflicts | Management authority is required, in addition to the relevant workflow conditions | No | Future NV03–NV07 capability; no permission seeded |
@@ -41,7 +41,10 @@ Both channels use the same `users`, `user_roles`, `roles`, `role_permissions` an
 
 ### Thymeleaf Web
 
-- Spring Security form processing uses `POST /login`; `POST /logout` is Spring Security logout. An authenticated logout invalidates the current Web session and records `AUTH_LOGOUT` when the actor is attributable. An anonymous or already-logged-out request is an idempotent no-op that returns `204` and does not create an `AUTH_LOGOUT` audit record. ACTIVE status is required for protected authenticated operations, not for this anonymous logout no-op. No Thymeleaf page or screen is implemented here.
+- Spring Security form processing uses `POST /login`; `POST /logout` is Spring Security logout. An authenticated logout invalidates the current Web session and records `AUTH_LOGOUT` when the actor is attributable. An anonymous or already-logged-out request is an idempotent no-op that returns `204` and does not create an `AUTH_LOGOUT` audit record. ACTIVE status is required for protected authenticated operations, not for this anonymous logout no-op. Current server-rendered page routes are listed below.
+- Only ACTIVE users assigned the `MANAGEMENT` business role may complete Web login. A `GATE_STAFF` account is denied Web authentication even when its submitted credentials are valid. The denial has the same generic public `401` response as other authentication failures and does not reveal account existence, role or credential validity.
+- A valid GATE_STAFF Web attempt is a failed Web-channel authentication attempt. It counts against the existing `(canonical username, servlet remote source IP)` throttle and does not clear prior failures. The existing threshold and `429` behavior apply.
+- The Web-role decision occurs before successful-login side effects. A role-denied Web attempt does not record `AUTH_LOGIN_SUCCESS`, update `last_login_at`, establish an authenticated Web session or perform throttle-success handling. It is recorded internally as `AUTH_LOGIN_FAILURE` with a denial reason in the existing audit data; no new audit action or database enum is introduced.
 - Authentication is kept in the servlet HTTP session; successful login changes the session ID. Spring Security CSRF protection stays enabled for Web state-changing requests, including login, logout and password change.
 - Session idle timeout is 30 minutes. A security filter independently enforces an 8-hour absolute limit from successful authentication even if the session remains active.
 - Session cookie configuration is `HttpOnly`, `Secure` and `SameSite=Lax`.
@@ -49,6 +52,7 @@ Both channels use the same `users`, `user_roles`, `roles`, `role_permissions` an
 
 ### REST / WinForms
 
+- `POST /api/auth/login` continues to support ACTIVE MANAGEMENT and GATE_STAFF accounts. Denial of a GATE_STAFF Web attempt does not change REST/WinForms eligibility or REST login behavior.
 - REST requests under `/api/**` are stateless and authenticate with `Authorization: Bearer <access_token>`; CSRF is disabled only on this stateless chain.
 - Login issues a signed HS256 JWT with a 12-hour default lifetime configurable through `smart-parking.security.jwt.access-token-ttl`.
 - Claims are `iss=smart-parking`, `aud=smart-parking-api`, `sub=<users.id>`, `iat`, `exp`, `jti` and `cv` (the credential-change version). The token has no role, permission or shift claims.
@@ -61,7 +65,7 @@ Both channels use the same `users`, `user_roles`, `roles`, `role_permissions` an
 
 - Usernames are trimmed and lowercased with locale-independent lowercase normalization before validation, persistence, lookup and throttling. A canonical username must be non-empty and contain no more than 100 Unicode code points. Uniqueness applies to the canonical `users.username`, and database uniqueness is the final guard against concurrent duplicate creation.
 - New passwords must contain at least 10 Unicode code points and no more than 72 UTF-8 bytes. Password change requires the current password, and the new password must differ from it. Login/password inputs are bounded at the request boundary; hashes are salted BCrypt cost 12 and are never returned or audited.
-- Failed login attempts are counted in memory by `(canonical username, servlet remote source IP)`. Five failures within a rolling 15-minute window cause subsequent requests for that pair to receive HTTP 429 until the window expires. Success clears that pair’s counter. Throttling does not alter `users.status`.
+- Failed login attempts are counted in memory by `(canonical username, servlet remote source IP)`. Five failures within a rolling 15-minute window cause subsequent requests for that pair to receive HTTP 429 until the window expires. Successful authentication in its channel clears that pair’s counter. A valid GATE_STAFF credential denied by Web-channel policy counts as a Web failure and does not clear the counter. Throttling does not alter `users.status`.
 - The single-instance limiter retains at most 10,000 active pair keys and five timestamps per key. At capacity, unseen pairs are rejected until expired entries are reclaimed; tracked pairs are not evicted early.
 - Failure messages do not disclose whether a username exists. The current single-instance in-memory limiter is not shared across multiple backend instances.
 
@@ -96,6 +100,8 @@ Authentication events are stored through the existing `audit_logs` table and its
 
 Records include the known actor when attribution is reliable, action/entity reference, request ID (when supplied and within schema length), servlet remote IP and event time. Unknown-user and bad-credential failures have no fabricated actor; the attempted canonical username may be the authentication entity reference. Passwords, password hashes, Bearer tokens and signing secrets are excluded from audit data and responses. There is no runtime role-assignment API in this slice, so no runtime grant-change event can occur yet.
 
+A valid GATE_STAFF Web attempt is recorded as `AUTH_LOGIN_FAILURE` with an internal `WEB_CHANNEL_ROLE_DENIED` reason in the existing audit data. It does not produce `AUTH_LOGIN_SUCCESS` or update `last_login_at`; this uses the existing audit action and requires no new event value or database enum. Public login errors remain generic.
+
 ## Persistence and migration decisions
 
 Flyway V1 and V2 remain immutable. New Flyway V3:
@@ -126,6 +132,8 @@ All request and response JSON uses the documented snake_case fields below. Missi
 
 ### `POST /api/auth/login` — anonymous
 
+This REST login supports ACTIVE MANAGEMENT and GATE_STAFF accounts. A GATE_STAFF account denied by Web-channel policy remains eligible for REST/WinForms authentication.
+
 Request:
 
 ```json
@@ -154,23 +162,37 @@ Request:
 
 Success `204 No Content`. The current password is verified; the new value must differ and meet policy. Previously issued JWTs fail on the next request because their `cv` no longer matches. No replacement token is issued.
 
+## Web interface
+
+### Thymeleaf pages and shared shells
+
+The `security` feature currently serves these server-rendered authentication-foundation pages:
+
+| GET route | Access | Current page |
+|---|---|---|
+| `/login` | Public; an authenticated MANAGEMENT user is redirected to `/` | MANAGEMENT sign-in |
+| `/` | MANAGEMENT only; anonymous document navigation redirects to `/login` | Authenticated username, MANAGEMENT role and Smart Parking Web context |
+| `/account/security` | MANAGEMENT and `SECURITY_CHANGE_OWN_PASSWORD` required | Own-password change form |
+
+The login page uses the public layout. The home and account-security pages use the authenticated layout; both shells share the head, header and theme control. Account-security and logout actions appear in the header only for authenticated users. These pages do not implement NV01–NV08 business workflows.
+
 ### Web form/session endpoints
 
-- `POST /login`: form parameters `username`, `password`; CSRF token required; success `204`, generic failure `401` or throttled `429`.
+- `POST /login`: form parameters `username`, `password`; CSRF token required; only ACTIVE MANAGEMENT accounts can succeed (`204`). All denied outcomes, including valid GATE_STAFF credentials, receive the same generic `401`; throttled attempts receive `429` under the existing contract. A valid GATE_STAFF attempt counts as a failure and does not clear the throttle or perform successful-login side effects.
 - `POST /logout`: CSRF token required; invalidates the server session and returns `204`.
 - `POST /web/auth/change-password`: authenticated session, CSRF token, JSON body matching REST password-change fields; success invalidates that session and returns `204`. Other sessions are rejected by credential-version comparison.
 
 ## Acceptance criteria
 
-1. Both channels authenticate the same ACTIVE account and use current server-side permissions; non-ACTIVE, unassigned-role, expired, wrong-signature, wrong-issuer/audience or pre-password-change callers cannot access protected operations.
+1. Web login accepts only ACTIVE MANAGEMENT accounts; REST login continues to accept ACTIVE MANAGEMENT and GATE_STAFF accounts. Both channels use current server-side permissions; non-ACTIVE, unassigned-role, expired, wrong-signature, wrong-issuer/audience or pre-password-change callers cannot access protected operations.
 2. User creation/update paths canonicalize usernames; duplicate canonical usernames and multiple role assignments per user fail at the database boundary. Every scalar surrogate ID is DB-generated/JPA IDENTITY while the two RBAC join keys stay composite.
 3. Web unsafe requests fail without CSRF; login rotates session ID; sessions expire after 30 minutes idle or 8 hours absolute; logout and password change invalidate the applicable session(s).
 4. REST login returns the Bearer contract with 12-hour default TTL, no refresh token, no permission/shift claims; REST logout only tells the client to discard the token; changing the JWT secret invalidates old tokens.
-5. BCrypt cost 12 is used; password minimum, 72-byte maximum, current-password check and changed-password invalidation are enforced; attempts throttle at five failures per normalized username/source-IP pair per 15 minutes without changing user status.
+5. BCrypt cost 12 is used; password minimum, 72-byte maximum, current-password check and changed-password invalidation are enforced; attempts throttle at five failures per normalized username/source-IP pair per 15 minutes without changing user status. Valid GATE_STAFF Web attempts count as failures, do not clear the throttle, receive a generic `401` before throttling, and may receive the existing `429` after the threshold.
 6. Initial bootstrap creates only the two roles and the implemented self-password permission/grants, requires controlled credentials when no management identity exists, and is safe to repeat without resetting credentials.
-7. Login outcomes, logout, password change and bootstrap grant/account events are audited without secrets; failed unknown identities are not attributed to a real user.
+7. Login outcomes, logout, password change and bootstrap grant/account events are audited without secrets; failed unknown identities are not attributed to a real user. Role-denied Web login uses `AUTH_LOGIN_FAILURE` with an internal denial reason and never records `AUTH_LOGIN_SUCCESS`, updates `last_login_at` or establishes a successful Web session.
 8. Gate context authorization requires the requesting MANAGEMENT or GATE_STAFF user to be assigned to the specified open shift and lane; it does not decide the gate outcome.
 
 ## Deferred scope
 
-No Thymeleaf screens, user CRUD or role-assignment API, password recovery, refresh tokens, token blacklist, multi-key rotation, multi-instance throttle storage, trusted proxy/IP-forwarding policy, NV01–NV08 business permission seeds/endpoints, gate business decision or WinForms offline/synchronization implementation are included. Offline actor changes remain historical evidence requiring NV07 review before side effects are replayed.
+No NV01–NV08 business screens or endpoints, user CRUD or role-assignment API, password recovery, refresh tokens, token blacklist, multi-key rotation, multi-instance throttle storage, trusted proxy/IP-forwarding policy, business permission seeds, gate business decision or WinForms offline/synchronization implementation are included. Offline actor changes remain historical evidence requiring NV07 review before side effects are replayed.
