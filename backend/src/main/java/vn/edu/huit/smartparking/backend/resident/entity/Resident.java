@@ -8,14 +8,17 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import vn.edu.huit.smartparking.backend.resident.ResidentIdentityKeyNormalizer;
 import vn.edu.huit.smartparking.backend.resident.enums.ResidentStatus;
 
 @Entity
-@Table(name = "residents")
+@Table(name = "residents", uniqueConstraints = @jakarta.persistence.UniqueConstraint(
+        name = "uk_residents_identity_number_key", columnNames = "identity_number_key"))
 @Getter
 @Setter
 public class Resident {
@@ -24,11 +27,15 @@ public class Resident {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "full_name", length = 150)
+    @Column(name = "full_name", length = 150, nullable = false)
     private String fullName;
 
-    @Column(name = "identity_number", length = 30)
+    @Column(name = "identity_number", length = 30, nullable = false)
     private String identityNumber;
+
+    @Column(name = "identity_number_key", length = 512, nullable = false, columnDefinition = "VARBINARY(512)")
+    @Setter(AccessLevel.NONE)
+    private byte[] identityNumberKey;
 
     @Column(name = "date_of_birth")
     private LocalDate dateOfBirth;
@@ -49,4 +56,10 @@ public class Resident {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    public void setIdentityNumber(String identityNumber) {
+        byte[] key = ResidentIdentityKeyNormalizer.identityNumberKey(identityNumber);
+        this.identityNumber = identityNumber;
+        this.identityNumberKey = key;
+    }
 }

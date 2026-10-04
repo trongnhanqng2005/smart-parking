@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf` — pages 1–2; `CNTT_KLCN101_Tran Van Tho.md` — NV01–NV08; `Ket_Qua_Khao_Sat_Bai_Xe.md` — §1–5  
-Implementation status: All 38 table definitions are represented by feature-owned JPA entities and migration `V1__create_approved_schema.sql`; V1 and resident email length correction V2 are applied to the local MySQL database.
+Implementation status: The original 38 ERD table definitions are represented by feature-owned JPA entities and V1; V2 applies the resident email width correction. V4 adds the approved AHR-01 identity/lifecycle fields. V5 applies the approved AHR review-remediation guarantor constraint correction and pending VehicleRight transition persistence; both are applied to local MySQL `smart_parking` with Hibernate validation passing.
 
 ## Reading Notes
 
@@ -77,6 +77,8 @@ Implementation status: All 38 table definitions are represented by feature-owned
 
 **Purpose:** Hồ sơ căn hộ. **Owner module:** `resident`. **Primary key:** `id`. **NV:** NV01.
 
+The original ERD identity fields remain. V4/AHR-01 adds canonical binary identity keys as an approved project-level decision; these keys are persistence-only and not user-facing fields.
+
 | Column | ERD Type | Meaning |
 |---|---|---|
 | id | bigint | Định danh căn hộ. |
@@ -86,10 +88,14 @@ Implementation status: All 38 table definitions are represented by feature-owned
 | status | apartment_status | Trạng thái căn hộ. |
 | created_at | datetime | Thời điểm tạo. |
 | updated_at | datetime | Thời điểm cập nhật. |
+| building_key | varbinary(2048) | V4/AHR-01 key: NFC → trim → collapse internal whitespace → Unicode uppercase with `Locale.ROOT` → NFC → UTF-8 bytes. First part of the full-value unique Apartment identity index; MySQL compares binary bytes only. Not an original ERD field. |
+| apartment_code_key | varbinary(768) | V4/AHR-01 key: NFC → trim → Unicode uppercase with `Locale.ROOT` → NFC → UTF-8 bytes. Preserve punctuation/internal spacing; second part of the full-value unique Apartment index. MySQL compares bytes only. Not an original ERD field. |
 
 ## `residents`
 
 **Purpose:** Hồ sơ cá nhân cư dân. **Owner module:** `resident`. **Primary key:** `id`. **NV:** NV01, NV03–04.
+
+V4/AHR-01 adds a canonical binary key for normalized identity-number uniqueness. It is sensitive persistence data, not an API profile field, and is not an original ERD field.
 
 | Column | ERD Type | Meaning |
 |---|---|---|
@@ -102,10 +108,13 @@ Implementation status: All 38 table definitions are represented by feature-owned
 | status | resident_status | Trạng thái cư dân. |
 | created_at | datetime | Thời điểm tạo. |
 | updated_at | datetime | Thời điểm cập nhật. |
+| identity_number_key | varbinary(512) | V4/AHR-01 key: NFC → trim → remove internal whitespace → uppercase Latin letters only → NFC → UTF-8 bytes; unique and binary-compared. No NFKC/compatibility folding. Not an original ERD field. |
 
 ## `apartment_memberships`
 
 **Purpose:** Quan hệ thành viên/chủ hộ giữa apartment và resident. **Owner module:** `resident`. **Primary key:** `id`. **NV:** NV01.
+
+V4/AHR-01 adds lifecycle event metadata and a table-specific `VOID` status as approved project-level decisions. AHR-11 uses those existing columns/literals for created-in-error corrections: rows remain stored and their effective interval is preserved. The original shared `relation_status` mapping remains unchanged for `card_assignments`.
 
 | Column | ERD Type | Meaning |
 |---|---|---|
@@ -115,8 +124,10 @@ Implementation status: All 38 table definitions are represented by feature-owned
 | member_role | membership_role | Vai trò trong hộ. |
 | valid_from | datetime | Bắt đầu hiệu lực. |
 | valid_to | datetime | Kết thúc hiệu lực. |
-| status | relation_status | Trạng thái quan hệ. |
+| status | membership_status | V4 table-specific MySQL ENUM: `ACTIVE`, `INACTIVE`, `REVOKED`, `VOID`; `VOID` is an AHR-01 addition, not an original ERD enum literal. |
 | created_at | datetime | Thời điểm tạo. |
+| lifecycle_changed_at | datetime(6) | V4/AHR-01 lifecycle command/event time; distinct from the effective interval end in `valid_to`. AHR-11 records VOID command time here without changing the interval. |
+| lifecycle_reason | varchar(500) | V4/AHR-01 business reason for lifecycle changes that require a reason; AHR-11 records the created-in-error reason for VOID. |
 
 ## `vehicle_families`
 
@@ -164,6 +175,8 @@ Implementation status: All 38 table definitions are represented by feature-owned
 
 **Purpose:** Quan hệ chủ xe/người được phép dùng xe. **Owner module:** `vehicle`. **Primary key:** `id`. **NV:** NV01, NV03–04.
 
+V4/AHR-01 adds business-guarantor/context links and table-specific lifecycle state/metadata. V5 applies the approved AHR review-remediation CHECK correction requiring `guarantor_type` for AUTHORIZED_USER. These are approved project-level additions after the original ERD; AHR-11 uses the existing `VOID` state/metadata to preserve created-in-error history without changing the effective interval, and `card_assignments.status` is unchanged.
+
 | Column | ERD Type | Meaning |
 |---|---|---|
 | id | bigint | Định danh quan hệ. |
@@ -172,8 +185,25 @@ Implementation status: All 38 table definitions are represented by feature-owned
 | relation_type | vehicle_relation_type | `OWNER` hoặc `AUTHORIZED_USER`. |
 | valid_from | datetime | Bắt đầu hiệu lực. |
 | valid_to | datetime | Kết thúc hiệu lực. |
-| status | relation_status | Trạng thái quan hệ. |
+| status | vehicle_relation_status | V4 table-specific MySQL ENUM: `ACTIVE`, `INACTIVE`, `REVOKED`, `VOID`, `PRE_EFFECTIVE_CANCELLED`; the last two are AHR-01 additions, not original ERD literals. |
 | created_at | datetime | Thời điểm tạo. |
+| guarantor_type | enum('OWNER','HOUSEHOLD_HEAD') | V4/AHR-01 basis of business guarantor for AUTHORIZED_USER; null for OWNER relations. |
+| guarantor_resident_id | bigint | V4/AHR-01 business guarantor Resident FK; required for AUTHORIZED_USER. |
+| guarantor_apartment_id | bigint | V4/AHR-01 Apartment-context FK; required iff the guarantor is HOUSEHOLD_HEAD. |
+| lifecycle_changed_at | datetime(6) | V4/AHR-01 lifecycle event time; for PRE_EFFECTIVE_CANCELLED it records the cancellation time, with no separate `cancelled_at` field. AHR-11 records the VOID command time without changing the effective interval. |
+| lifecycle_reason | varchar(500) | V4/AHR-01 business reason for lifecycle changes that require a reason; AHR-11 stores the required created-in-error explanation. |
+
+## `vehicle_right_pending_transitions`
+
+**Purpose:** Durable storage for a future-dated dependent VehicleRight terminal transition. **Owner module:** `vehicle`. **Primary key:** `id`. This table and its constraints are an approved AHR review-remediation persistence decision, not an original ERD table. V5 creates the storage; the due-time transition processor is a later AHRR task.
+
+| Column | Type | Meaning |
+|---|---|---|
+| id | bigint | Generated pending-transition row identifier. |
+| vehicle_right_id | bigint | Unique VehicleRight target; restrictive FK preserves the target relation. At most one pending transition is stored per VehicleRight. |
+| effective_at | datetime | Approved future transition instant, using the same precision as VehicleRight effective intervals. |
+| reason | varchar(500) | Nonblank source-command reason retained for the deferred lifecycle audit. |
+| source_actor_user_id | bigint | Required originating management actor; restrictive FK preserves attribution. |
 
 ## `cards`
 

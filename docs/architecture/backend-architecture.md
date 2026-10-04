@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`, `backend/pom.xml`, `backend/src/`  
-Implementation status: Database, authentication/RBAC, and the server-rendered MANAGEMENT Web foundation (public sign-in and MANAGEMENT-protected application routes) are implemented. Approved NV01–NV08 business workflows remain unimplemented and are built incrementally as those capabilities are developed.
+Implementation status: Database, authentication/RBAC, the server-rendered MANAGEMENT Web foundation, and the AHR-03 Apartment, AHR-04 Resident profile, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-07 existing Vehicle lookup/OWNER, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight lifecycle/guarantor-loss integration, AHR-10 Resident status lifecycle and AHR-11 Membership/VehicleRight VOID API subsets are implemented. Remaining approved NV01–NV08 business workflows are unimplemented and are built incrementally as those capabilities are developed.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Implementation status: Database, authentication/RBAC, and the server-rendered MA
 - AI service là thành phần riêng; AI Inference trả nhận diện/độ tin cậy, backend chịu trách nhiệm quyết định nghiệp vụ và quyền cổng.
 - Không tách các module nghiệp vụ thành microservices.
 
-`backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` có persistence entities theo module sở hữu trong ERD. The authentication/RBAC foundation includes repositories, services, controllers and security configuration, audit integration, and persistence support. Repositories, services, and controllers for NV01–NV08 business capabilities are implemented incrementally as those capabilities are built.
+`backend/pom.xml` xác nhận Java 21, Spring Boot 4.1.1, JPA, Security, Thymeleaf, Web MVC, Validation và MySQL driver. `src/` có persistence entities theo module sở hữu trong ERD. The authentication/RBAC foundation includes repositories, services, controllers and security configuration, audit integration, and persistence support. The `resident` module implements AHR-03 Apartment, AHR-04 Resident profile, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-10 Resident status and AHR-11 Membership VOID commands; the `vehicle` module implements AHR-07 existing Vehicle lookup/OWNER assignment/transfer, AHR-08 AUTHORIZED_USER grants/queries, AHR-09 VehicleRight lifecycle/guarantor-loss integration and AHR-11 VehicleRight VOID commands. Remaining NV01–NV08 business capabilities are implemented incrementally as those capabilities are built.
 
 ## Management Web Foundation
 
@@ -88,6 +88,12 @@ vn.edu.huit.smartparking.backend
 ## Dependency Guidance
 
 Feature module sở hữu và cập nhật Entity/table của mình. Module khác gọi hành vi nghiệp vụ của owner, không trực tiếp điều khiển lifecycle của Entity đó. `gate` là orchestrator của workflow cổng; `report` đọc dữ liệu. Không tạo vòng phụ thuộc service. Transaction boundary được xác định theo use case; không giữ DB Transaction trong lúc gọi AI, camera, barrier hay phương thức thanh toán bên ngoài.
+
+For AHR-09, AHR-10 and AHR-11 Membership VOID, `resident` declares the narrow `VehicleRightInvalidationPort` and calls it synchronously for vehicle-owned dependent VOID changes. The `vehicle` module implements the port and owns dependent VehicleRight lifecycle and audit changes. Resident status/VOID discovery includes relevant guarantor-dependent resources; commands lock Resident rows, Apartments, Vehicles and target relations in the approved order, revalidate after locking and retry an expanded lock set from a fresh transaction where required. Source changes, dependent relations and audit records share one transaction; `resident` does not depend on vehicle services or entities. AHR-11 cascades only where stored guarantor/context and interval/lifecycle evidence prove the source relation, and adds no persistence schema.
+
+For AHRR-05 future household-head transfers, `resident` invokes the vehicle-owned deferred-effect operation through the existing invalidation port after locking source Residents and the Apartment. The `vehicle` implementation discovers and locks affected Vehicles and VehicleRights, then stores the pending transition with the capped grant interval in the same transaction as the Membership transfer. The durable `valid_to=T` cutoff preserves half-open effectiveness if due processing is delayed; the processor later records terminal state and audit. No schema change or resident-to-vehicle dependency is introduced.
+
+For AHR review-remediation authorization, automatic dependent effects inherit the source command permission; additional owner-module manage permissions apply only to explicit nested Membership or VehicleRight actions. The `resident` module continues to invoke vehicle-owned effects through the narrow port.
 
 ## Internal Feature Structure
 
