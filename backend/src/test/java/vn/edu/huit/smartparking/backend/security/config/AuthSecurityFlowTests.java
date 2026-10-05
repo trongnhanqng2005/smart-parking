@@ -55,6 +55,7 @@ import vn.edu.huit.smartparking.backend.security.controller.AccountSecurityPageC
 import vn.edu.huit.smartparking.backend.security.controller.AuthController;
 import vn.edu.huit.smartparking.backend.security.controller.LoginPageController;
 import vn.edu.huit.smartparking.backend.security.controller.ManagementHomeController;
+import vn.edu.huit.smartparking.backend.resident.controller.ResidentRegistrationPageController;
 import vn.edu.huit.smartparking.backend.resident.controller.ApartmentManagementController;
 import vn.edu.huit.smartparking.backend.resident.controller.ApartmentMembershipManagementController;
 import vn.edu.huit.smartparking.backend.resident.controller.ResidentManagementController;
@@ -136,7 +137,8 @@ import vn.edu.huit.smartparking.backend.vehicle.service.VehicleRightLifecycleSer
 import vn.edu.huit.smartparking.backend.vehicle.service.VehicleRelationStateConflictException;
 
 @WebMvcTest({AuthController.class, AccountSecurityPageController.class, LoginPageController.class,
-        ManagementHomeController.class, ApartmentManagementController.class, ResidentManagementController.class,
+        ManagementHomeController.class, ResidentRegistrationPageController.class, ApartmentManagementController.class,
+        ResidentManagementController.class,
         ApartmentMembershipManagementController.class, VehicleManagementController.class})
 @Import({
         SecurityConfiguration.class,
@@ -1593,11 +1595,41 @@ class AuthSecurityFlowTests {
         org.junit.jupiter.api.Assertions.assertTrue(html.contains("manager"));
         org.junit.jupiter.api.Assertions.assertTrue(html.contains("MANAGEMENT"));
         org.junit.jupiter.api.Assertions.assertTrue(html.contains("WORKSPACE / WEB"));
-        org.junit.jupiter.api.Assertions.assertTrue(html.contains("Smart Parking"));
+        org.junit.jupiter.api.Assertions.assertTrue(html.contains("Đăng ký cư dân"));
+        org.junit.jupiter.api.Assertions.assertTrue(html.contains("Mở hồ sơ NV01"));
         org.junit.jupiter.api.Assertions.assertTrue(html.contains("href=\"/account/security\""));
         org.junit.jupiter.api.Assertions.assertTrue(html.contains("action=\"/logout\""));
         org.junit.jupiter.api.Assertions.assertTrue(html.contains("data-logout-form"));
         assertTrue(Pattern.compile("name=\"_csrf\"\\s+value=\"[^\"]+\"").matcher(html).find());
+    }
+
+    @Test
+    void residentRegistrationPageRequiresManagementWebAuthentication() throws Exception {
+        mockMvc.perform(get("/management/resident-registration"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/management/resident-registration").with(user("gate-staff").roles("GATE_STAFF")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void managementCanOpenResidentRegistrationPageFromHome() throws Exception {
+        mockMvc.perform(get("/").with(user("manager").roles("MANAGEMENT")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"/management/resident-registration\"")));
+
+        mockMvc.perform(get("/management/resident-registration").with(user("manager").authorities(
+                        new SimpleGrantedAuthority("ROLE_MANAGEMENT"),
+                        new SimpleGrantedAuthority("APARTMENT_READ"),
+                        new SimpleGrantedAuthority("APARTMENT_MANAGE"),
+                        new SimpleGrantedAuthority("RESIDENT_READ"),
+                        new SimpleGrantedAuthority("RESIDENT_MANAGE"))))
+                .andExpect(status().isOk())
+                .andExpect(view().name("app/resident-registration"))
+                .andExpect(content().string(containsString("id=\"resident-registration-title\"")))
+                .andExpect(content().string(containsString("Tìm hoặc tạo căn hộ")))
+                .andExpect(content().string(containsString("Tra cứu chính xác theo số định danh")))
+                .andExpect(content().string(containsString("Tạo hồ sơ hoặc sử dụng hồ sơ hiện có")));
     }
 
     @Test
