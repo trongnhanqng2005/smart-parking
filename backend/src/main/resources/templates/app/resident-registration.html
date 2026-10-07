@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="vi" xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{layouts/authenticated :: layout('Đăng ký căn hộ và hộ gia đình', ~{::registrationContent})}">
+<section class="resident-registration" th:fragment="registrationContent"
+         aria-labelledby="resident-registration-title">
+  <header class="resident-registration__intro">
+    <a class="resident-registration__back" th:href="@{/}">Quay lại khu vực Ban quản lý</a>
+    <p class="resident-registration__eyebrow">NV01 / HỒ SƠ CƯ DÂN</p>
+    <h1 id="resident-registration-title">Đăng ký căn hộ và hộ gia đình</h1>
+    <p class="resident-registration__description">
+      Ghi nhận căn hộ, chủ hộ, thành viên và quyền sử dụng trên xe hiện có.
+    </p>
+  </header>
+
+  <section class="resident-registration__workflow" aria-label="Đăng ký căn hộ và cư dân">
+    <section class="resident-registration__panel" aria-labelledby="apartment-step-title">
+      <div class="resident-registration__panel-heading">
+        <span class="resident-registration__index" aria-hidden="true">01</span>
+        <div>
+          <p class="resident-registration__eyebrow">BƯỚC 1</p>
+          <h2 id="apartment-step-title">Tìm hoặc tạo căn hộ</h2>
+        </div>
+      </div>
+
+      <article class="resident-registration__selected" th:if="${selectedApartment != null}"
+               aria-label="Căn hộ đang chọn">
+        <p class="resident-registration__eyebrow">CĂN HỘ ĐÃ CHỌN</p>
+        <h3 th:text="${selectedApartment.building + ' · ' + selectedApartment.apartmentCode}">Tòa nhà · Mã căn hộ</h3>
+        <p th:text="${'Mã hồ sơ ' + selectedApartment.id}">Mã hồ sơ</p>
+      </article>
+
+      <form class="resident-registration__form" method="get"
+            th:action="@{/management/resident-registration}" th:if="${canReadApartments}">
+        <input type="hidden" name="searchApartment" value="true">
+        <label for="apartment-search-building">Tòa nhà</label>
+        <input id="apartment-search-building" name="building" maxlength="100"
+               th:value="${apartmentForm.building}" autocomplete="off">
+        <label for="apartment-search-code">Mã căn hộ</label>
+        <input id="apartment-search-code" name="apartmentCode" maxlength="50"
+               th:value="${apartmentForm.apartmentCode}" autocomplete="off">
+        <input type="hidden" name="residentId" th:value="${residentId}" th:if="${residentId != null}">
+        <button class="resident-registration__secondary-action" type="submit">Tìm căn hộ chính xác</button>
+      </form>
+
+      <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+           tabindex="-1" data-focus-on-load th:if="${apartmentSearchError != null}" th:text="${apartmentSearchError}"></div>
+      <ul class="resident-registration__results" th:if="${apartmentResults != null}" aria-label="Kết quả căn hộ">
+        <li th:each="apartment : ${apartmentResults}">
+          <a th:href="@{/management/resident-registration(apartmentId=${apartment.id},residentId=${residentId})}">
+            <span th:text="${apartment.building + ' · ' + apartment.apartmentCode}">Tòa nhà · Mã căn hộ</span>
+            <small th:text="${'Hồ sơ ' + apartment.id + ' · ' + apartment.status}">Hồ sơ</small>
+          </a>
+        </li>
+        <li th:if="${#lists.isEmpty(apartmentResults)}">Không có căn hộ phù hợp.</li>
+      </ul>
+
+      <div class="resident-registration__feedback resident-registration__feedback--success" role="status"
+           th:if="${apartmentNotice != null}" th:text="${apartmentNotice}"></div>
+      <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+           tabindex="-1" data-focus-on-load th:if="${apartmentError != null}" th:text="${apartmentError}"></div>
+
+      <form class="resident-registration__form" method="post"
+            th:action="@{/management/resident-registration/apartment}" th:if="${canManageApartments}"
+            th:object="${apartmentForm}" data-mutation-form data-pending-message="Đang lưu căn hộ, vui lòng đợi.">
+        <fieldset>
+          <legend>Tạo căn hộ</legend>
+          <label for="apartment-building">Tòa nhà</label>
+          <input id="apartment-building" th:field="*{building}" maxlength="100" required
+                 th:attr="aria-invalid=${#fields.hasErrors('building') ? 'true' : null}, aria-describedby=${#fields.hasErrors('building') ? 'apartment-building-error' : null}"
+                 autocomplete="organization">
+          <span id="apartment-building-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('building')}" th:errors="*{building}"></span>
+          <label for="apartment-code">Mã căn hộ</label>
+          <input id="apartment-code" th:field="*{apartmentCode}" maxlength="50" required
+                 th:attr="aria-invalid=${#fields.hasErrors('apartmentCode') ? 'true' : null}, aria-describedby=${#fields.hasErrors('apartmentCode') ? 'apartment-code-error' : null}"
+                 autocomplete="off">
+          <span id="apartment-code-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('apartmentCode')}" th:errors="*{apartmentCode}"></span>
+          <label for="apartment-floor">Tầng <span>(không bắt buộc)</span></label>
+          <input id="apartment-floor" th:field="*{floorNo}" type="number"
+                 th:attr="aria-invalid=${#fields.hasErrors('floorNo') ? 'true' : null}, aria-describedby=${#fields.hasErrors('floorNo') ? 'apartment-floor-error' : null}">
+          <span id="apartment-floor-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('floorNo')}" th:errors="*{floorNo}"></span>
+          <input type="hidden" name="apartmentId" th:value="${apartmentId}" th:if="${apartmentId != null}">
+          <input type="hidden" name="residentId" th:value="${residentId}" th:if="${residentId != null}">
+          <button class="resident-registration__primary-action" type="submit" data-pending-label="Đang lưu…">Lưu căn hộ</button>
+          <p class="resident-registration__pending" data-pending-status role="status" aria-live="polite" hidden></p>
+        </fieldset>
+      </form>
+    </section>
+
+    <section class="resident-registration__panel" aria-labelledby="resident-step-title">
+      <div class="resident-registration__panel-heading">
+        <span class="resident-registration__index" aria-hidden="true">02</span>
+        <div>
+          <p class="resident-registration__eyebrow">BƯỚC 2</p>
+          <h2 id="resident-step-title">Tìm hoặc tạo hồ sơ cư dân</h2>
+        </div>
+      </div>
+
+      <article class="resident-registration__selected" th:if="${selectedResident != null}"
+               aria-label="Cư dân đang chọn">
+        <p class="resident-registration__eyebrow">CƯ DÂN ĐÃ CHỌN</p>
+        <h3 th:text="${selectedResident.fullName}">Tên cư dân</h3>
+        <p th:text="${'Mã hồ sơ ' + selectedResident.id + ' · ' + selectedResident.status}">Mã hồ sơ</p>
+      </article>
+
+      <div class="resident-registration__feedback resident-registration__feedback--success" role="status"
+           th:if="${residentNotice != null}" th:text="${residentNotice}"></div>
+      <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+           tabindex="-1" data-focus-on-load th:if="${residentError != null}" th:text="${residentError}"></div>
+
+      <form class="resident-registration__form" method="post"
+            th:action="@{/management/resident-registration/resident/lookup}" th:if="${canReadResidents}">
+        <fieldset>
+          <legend>Tra cứu chính xác theo số định danh</legend>
+          <label for="resident-lookup-identity">Số định danh</label>
+          <input id="resident-lookup-identity" name="identityNumber" maxlength="30" required
+                 th:value="${residentForm.identityNumber}" autocomplete="off">
+          <input type="hidden" name="apartmentId" th:value="${apartmentId}" th:if="${apartmentId != null}">
+          <input type="hidden" name="residentId" th:value="${residentId}" th:if="${residentId != null}">
+          <button class="resident-registration__secondary-action" type="submit">Tra cứu hồ sơ</button>
+        </fieldset>
+      </form>
+
+      <form class="resident-registration__form" method="post"
+            th:action="@{/management/resident-registration/resident}" th:if="${canManageResidents}"
+            th:object="${residentForm}" data-mutation-form data-pending-message="Đang lưu hồ sơ cư dân, vui lòng đợi.">
+        <fieldset>
+          <legend>Tạo hồ sơ hoặc sử dụng hồ sơ hiện có</legend>
+          <label for="resident-full-name">Họ và tên</label>
+          <input id="resident-full-name" th:field="*{fullName}" maxlength="150" required
+                 th:attr="aria-invalid=${#fields.hasErrors('fullName') ? 'true' : null}, aria-describedby=${#fields.hasErrors('fullName') ? 'resident-full-name-error' : null}"
+                 autocomplete="name">
+          <span id="resident-full-name-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('fullName')}" th:errors="*{fullName}"></span>
+          <label for="resident-identity">Số định danh</label>
+          <input id="resident-identity" th:field="*{identityNumber}" maxlength="30" required
+                 th:attr="aria-invalid=${#fields.hasErrors('identityNumber') ? 'true' : null}, aria-describedby=${#fields.hasErrors('identityNumber') ? 'resident-identity-error' : null}"
+                 autocomplete="off">
+          <span id="resident-identity-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('identityNumber')}" th:errors="*{identityNumber}"></span>
+          <label for="resident-date-of-birth">Ngày sinh <span>(không bắt buộc)</span></label>
+          <input id="resident-date-of-birth" th:field="*{dateOfBirth}" type="date"
+                 th:attr="aria-invalid=${#fields.hasErrors('dateOfBirth') ? 'true' : null}, aria-describedby=${#fields.hasErrors('dateOfBirth') ? 'resident-date-of-birth-error' : null}">
+          <span id="resident-date-of-birth-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('dateOfBirth')}" th:errors="*{dateOfBirth}"></span>
+          <label for="resident-phone">Số điện thoại <span>(không bắt buộc)</span></label>
+          <input id="resident-phone" th:field="*{phone}" type="tel" maxlength="30"
+                 th:attr="aria-invalid=${#fields.hasErrors('phone') ? 'true' : null}, aria-describedby=${#fields.hasErrors('phone') ? 'resident-phone-error' : null}"
+                 autocomplete="tel">
+          <span id="resident-phone-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('phone')}" th:errors="*{phone}"></span>
+          <label for="resident-email">Email <span>(không bắt buộc)</span></label>
+          <input id="resident-email" th:field="*{email}" type="email" maxlength="150"
+                 th:attr="aria-invalid=${#fields.hasErrors('email') ? 'true' : null}, aria-describedby=${#fields.hasErrors('email') ? 'resident-email-error' : null}"
+                 autocomplete="email">
+          <span id="resident-email-error" class="resident-registration__field-error"
+                th:if="${#fields.hasErrors('email')}" th:errors="*{email}"></span>
+          <input type="hidden" name="apartmentId" th:value="${apartmentId}" th:if="${apartmentId != null}">
+          <input type="hidden" name="residentId" th:value="${residentId}" th:if="${residentId != null}">
+          <button class="resident-registration__primary-action" type="submit" data-pending-label="Đang lưu…">Tạo hoặc chọn cư dân</button>
+          <p class="resident-registration__pending" data-pending-status role="status" aria-live="polite" hidden></p>
+        </fieldset>
+      </form>
+    </section>
+  </section>
+
+  <section class="resident-registration__panel resident-registration__membership"
+           aria-labelledby="membership-step-title"
+           th:if="${canManageMemberships and selectedApartment != null and selectedResident != null}">
+    <div class="resident-registration__panel-heading">
+      <span class="resident-registration__index" aria-hidden="true">03</span>
+      <div>
+        <p class="resident-registration__eyebrow">BƯỚC 3</p>
+        <h2 id="membership-step-title">Ghi nhận quan hệ hộ gia đình</h2>
+      </div>
+    </div>
+
+    <p>Căn hộ <strong th:text="${selectedApartment.building + ' · ' + selectedApartment.apartmentCode}">Căn hộ</strong>
+      và cư dân <strong th:text="${selectedResident.fullName}">Cư dân</strong> đang được chọn.</p>
+    <div class="resident-registration__feedback resident-registration__feedback--success" role="status"
+         th:if="${membershipNotice != null}">
+      <span th:text="${membershipNotice}">Quan hệ đã được ghi nhận.</span>
+      <span th:if="${membershipRole != null}" th:text="${membershipRole}">HOUSEHOLD_HEAD</span>
+    </div>
+    <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+         tabindex="-1" data-focus-on-load th:if="${membershipError != null}" th:text="${membershipError}"></div>
+
+    <div class="resident-registration__workflow">
+      <form class="resident-registration__form" method="post"
+            th:action="@{/management/resident-registration/membership/head}"
+            data-mutation-form data-pending-message="Đang ghi nhận chủ hộ, vui lòng đợi.">
+        <fieldset>
+          <legend>Gán vai trò chủ hộ (HOUSEHOLD_HEAD)</legend>
+          <label for="head-valid-from">Có hiệu lực từ</label>
+          <input id="head-valid-from" name="validFrom" type="datetime-local" required
+                 th:value="${membershipForm?.validFrom}">
+          <label for="head-valid-to">Có hiệu lực đến <span>(không bắt buộc)</span></label>
+          <input id="head-valid-to" name="validTo" type="datetime-local"
+                 th:value="${membershipForm?.validTo}">
+          <label for="head-reason">Lý do ghi nhận</label>
+          <input id="head-reason" name="reason" maxlength="500" required
+                 th:value="${membershipForm?.reason}">
+          <input type="hidden" name="apartmentId" th:value="${apartmentId}">
+          <input type="hidden" name="residentId" th:value="${residentId}">
+          <button class="resident-registration__primary-action" type="submit" data-pending-label="Đang ghi nhận…">Ghi nhận chủ hộ</button>
+          <p class="resident-registration__pending" data-pending-status role="status" aria-live="polite" hidden></p>
+        </fieldset>
+      </form>
+
+      <form class="resident-registration__form" method="post"
+            th:action="@{/management/resident-registration/membership/member}"
+            data-mutation-form data-pending-message="Đang thêm thành viên, vui lòng đợi.">
+        <fieldset>
+          <legend>Thêm vai trò thành viên (MEMBER)</legend>
+          <label for="member-valid-from">Có hiệu lực từ</label>
+          <input id="member-valid-from" name="validFrom" type="datetime-local" required
+                 th:value="${membershipForm?.validFrom}">
+          <label for="member-valid-to">Có hiệu lực đến <span>(không bắt buộc)</span></label>
+          <input id="member-valid-to" name="validTo" type="datetime-local"
+                 th:value="${membershipForm?.validTo}">
+          <label for="member-reason">Lý do ghi nhận</label>
+          <input id="member-reason" name="reason" maxlength="500" required
+                 th:value="${membershipForm?.reason}">
+          <input type="hidden" name="apartmentId" th:value="${apartmentId}">
+          <input type="hidden" name="residentId" th:value="${residentId}">
+          <button class="resident-registration__primary-action" type="submit" data-pending-label="Đang ghi nhận…">Thêm thành viên</button>
+          <p class="resident-registration__pending" data-pending-status role="status" aria-live="polite" hidden></p>
+        </fieldset>
+      </form>
+    </div>
+  </section>
+
+  <section class="resident-registration__panel resident-registration__vehicles"
+           aria-labelledby="vehicle-step-title" th:if="${canReadVehicles}">
+    <div class="resident-registration__panel-heading">
+      <span class="resident-registration__index" aria-hidden="true">04</span>
+      <div>
+        <p class="resident-registration__eyebrow">BƯỚC 4</p>
+        <h2 id="vehicle-step-title">Tìm xe đã ghi nhận</h2>
+      </div>
+    </div>
+
+    <article class="resident-registration__selected" th:if="${selectedVehicle != null}"
+             aria-label="Xe đang chọn">
+      <p class="resident-registration__eyebrow">XE ĐÃ CHỌN</p>
+      <h3 th:text="${selectedVehicle.plateNumber}">Biển số</h3>
+      <p th:text="${'Mã hồ sơ ' + selectedVehicle.id + ' · ' + selectedVehicle.status}">Mã hồ sơ xe</p>
+      <p th:if="${selectedVehicle.brand != null}" th:text="${selectedVehicle.brand}">Hãng xe</p>
+    </article>
+
+    <form class="resident-registration__form" method="get"
+          th:action="@{/management/resident-registration}">
+      <fieldset>
+        <legend>Tra cứu xe hiện có theo biển số chính xác</legend>
+        <label for="vehicle-plate-search">Biển số chuẩn hóa</label>
+        <input id="vehicle-plate-search" name="plateNumber" maxlength="30" required
+               th:value="${vehicleSearchForm.plateNumber}" autocomplete="off">
+        <p id="vehicle-plate-search-hint">Tìm khớp chính xác trên giá trị chuẩn hóa; hệ thống gửi nguyên nội dung đã nhập và không tự điều chỉnh.</p>
+        <input type="hidden" name="searchVehicle" value="true">
+        <input type="hidden" name="apartmentId" th:value="${apartmentId}" th:if="${apartmentId != null}">
+        <input type="hidden" name="residentId" th:value="${residentId}" th:if="${residentId != null}">
+        <button class="resident-registration__secondary-action" type="submit">Tìm xe hiện có</button>
+      </fieldset>
+    </form>
+
+    <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+         tabindex="-1" data-focus-on-load th:if="${vehicleSearchError != null}" th:text="${vehicleSearchError}"></div>
+    <ul class="resident-registration__results" th:if="${vehicleResults != null}" aria-label="Kết quả xe">
+      <li th:each="vehicle : ${vehicleResults}">
+        <a th:href="@{/management/resident-registration(vehicleId=${vehicle.id},residentId=${residentId},apartmentId=${apartmentId},plateNumber=${vehicleSearchForm.plateNumber})}">
+          <span th:text="${vehicle.plateNumber}">Biển số</span>
+          <small th:text="${'Hồ sơ ' + vehicle.id + ' · ' + vehicle.status}">Hồ sơ xe</small>
+        </a>
+      </li>
+      <li th:if="${#lists.isEmpty(vehicleResults)}">Không tìm thấy xe đã ghi nhận. Kiểm tra lại giá trị chuẩn hóa.</li>
+    </ul>
+
+    <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+         tabindex="-1" data-focus-on-load th:if="${vehicleError != null}" th:text="${vehicleError}"></div>
+    <div class="resident-registration__feedback resident-registration__feedback--success" role="status"
+         th:if="${ownerNotice != null}">
+      <span th:text="${ownerNotice}">Quan hệ chủ xe đã được ghi nhận.</span>
+      <span th:if="${ownerRelationType != null}" th:text="${ownerRelationType}">OWNER</span>
+    </div>
+    <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+         tabindex="-1" data-focus-on-load th:if="${ownerError != null}" th:text="${ownerError}"></div>
+
+    <form class="resident-registration__form" method="post"
+          th:action="@{/management/resident-registration/vehicle/owner}"
+          th:if="${canManageVehicleRights and (selectedVehicle != null or ownerError != null) and selectedResident != null}"
+          data-mutation-form data-pending-message="Đang ghi nhận chủ xe, vui lòng đợi.">
+      <fieldset>
+        <legend>Ghi nhận cư dân đang được chọn là chủ xe (OWNER)</legend>
+        <p th:text="${'Cư dân: ' + selectedResident.fullName}">Cư dân đang chọn</p>
+        <p th:if="${selectedVehicle == null}">Hãy tra cứu và chọn một xe hiện có trước khi gửi lại.</p>
+        <label for="owner-valid-from">Có hiệu lực từ</label>
+        <input id="owner-valid-from" name="validFrom" type="datetime-local" required
+               th:value="${ownerForm?.validFrom}">
+        <label for="owner-valid-to">Có hiệu lực đến <span>(không bắt buộc)</span></label>
+        <input id="owner-valid-to" name="validTo" type="datetime-local"
+               th:value="${ownerForm?.validTo}">
+        <label for="owner-reason">Lý do ghi nhận</label>
+        <input id="owner-reason" name="reason" maxlength="500" required
+               th:value="${ownerForm?.reason}">
+        <input type="hidden" name="vehicleId" th:value="${vehicleId}">
+        <input type="hidden" name="residentId" th:value="${residentId}">
+        <input type="hidden" name="apartmentId" th:value="${apartmentId}" th:if="${apartmentId != null}">
+        <input type="hidden" name="plateNumber" th:value="${vehicleSearchForm.plateNumber}">
+        <button class="resident-registration__primary-action" type="submit" data-pending-label="Đang ghi nhận…">Ghi nhận chủ xe</button>
+        <p class="resident-registration__pending" data-pending-status role="status" aria-live="polite" hidden></p>
+      </fieldset>
+    </form>
+
+    <div class="resident-registration__feedback resident-registration__feedback--success" role="status"
+         th:if="${authorizedUserNotice != null}">
+      <span th:text="${authorizedUserNotice}">Quyền sử dụng xe đã được ghi nhận.</span>
+      <span th:if="${authorizedUserRelationType != null}" th:text="${authorizedUserRelationType}">AUTHORIZED_USER</span>
+      <span th:if="${authorizedUserGuarantorType != null}" th:text="${authorizedUserGuarantorType}">OWNER</span>
+    </div>
+    <div class="resident-registration__feedback resident-registration__feedback--error" role="alert"
+         tabindex="-1" data-focus-on-load th:if="${authorizedUserError != null}" th:text="${authorizedUserError}"></div>
+
+    <form class="resident-registration__form" method="post"
+          th:action="@{/management/resident-registration/vehicle/authorized-user}"
+          th:if="${canManageVehicleRights and (selectedVehicle != null or authorizedUserError != null) and selectedResident != null}"
+          data-mutation-form data-pending-message="Đang ghi nhận quyền sử dụng, vui lòng đợi.">
+      <fieldset>
+        <legend>Ghi nhận quyền sử dụng xe (AUTHORIZED_USER)</legend>
+        <p th:text="${'Cư dân được cấp quyền: ' + selectedResident.fullName}">Cư dân được cấp quyền</p>
+        <p>Chọn rõ người bảo lãnh. Không yêu cầu xác minh khuôn mặt; việc cấp quyền vẫn theo kiểm tra chuỗi bảo lãnh của hệ thống.</p>
+        <label for="authorized-user-guarantor-type">Loại người bảo lãnh</label>
+        <select id="authorized-user-guarantor-type" name="guarantorType" required>
+          <option value="">Chọn loại bảo lãnh</option>
+          <option value="OWNER" th:selected="${authorizedUserForm?.guarantorType?.name() == 'OWNER'}">Chủ xe (OWNER)</option>
+          <option value="HOUSEHOLD_HEAD" th:selected="${authorizedUserForm?.guarantorType?.name() == 'HOUSEHOLD_HEAD'}">Chủ hộ (HOUSEHOLD_HEAD)</option>
+        </select>
+        <label for="authorized-user-guarantor-resident">Mã hồ sơ cư dân bảo lãnh</label>
+        <input id="authorized-user-guarantor-resident" name="guarantorResidentId" type="number" min="1" required
+               th:value="${authorizedUserForm?.guarantorResidentId}">
+        <label for="authorized-user-guarantor-apartment">Mã hồ sơ căn hộ <span>(chỉ dành cho HOUSEHOLD_HEAD)</span></label>
+        <input id="authorized-user-guarantor-apartment" name="guarantorApartmentId" type="number" min="1"
+               th:value="${authorizedUserForm?.guarantorApartmentId}">
+        <p>Với OWNER, để trống căn hộ. Với HOUSEHOLD_HEAD, nhập căn hộ dùng để kiểm tra chuỗi bảo lãnh.</p>
+        <label for="authorized-user-valid-from">Có hiệu lực từ</label>
+        <input id="authorized-user-valid-from" name="validFrom" type="datetime-local" required
+               th:value="${authorizedUserForm?.validFrom}">
+        <label for="authorized-user-valid-to">Có hiệu lực đến <span>(không bắt buộc)</span></label>
+        <input id="authorized-user-valid-to" name="validTo" type="datetime-local"
+               th:value="${authorizedUserForm?.validTo}">
+        <label for="authorized-user-reason">Lý do ghi nhận</label>
+        <input id="authorized-user-reason" name="reason" maxlength="500" required
+               th:value="${authorizedUserForm?.reason}">
+        <input type="hidden" name="vehicleId" th:value="${vehicleId}">
+        <input type="hidden" name="residentId" th:value="${residentId}">
+        <input type="hidden" name="apartmentId" th:value="${apartmentId}" th:if="${apartmentId != null}">
+        <input type="hidden" name="plateNumber" th:value="${vehicleSearchForm.plateNumber}">
+        <button class="resident-registration__primary-action" type="submit" data-pending-label="Đang ghi nhận…">Ghi nhận quyền sử dụng</button>
+        <p class="resident-registration__pending" data-pending-status role="status" aria-live="polite" hidden></p>
+      </fieldset>
+    </form>
+  </section>
+</section>
+</html>

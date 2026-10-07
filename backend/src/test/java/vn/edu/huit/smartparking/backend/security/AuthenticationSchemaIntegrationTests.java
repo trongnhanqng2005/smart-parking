@@ -40,7 +40,7 @@ class AuthenticationSchemaIntegrationTests {
         assertEquals(3, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM flyway_schema_history WHERE version IN ('1', '2', '3') AND success = 1",
                 Integer.class));
-        assertEquals(36, jdbcTemplate.queryForObject(
+        assertEquals(37, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM information_schema.columns "
                         + "WHERE table_schema = DATABASE() AND column_name = 'id' "
                         + "AND extra LIKE '%auto_increment%'",
@@ -68,13 +68,29 @@ class AuthenticationSchemaIntegrationTests {
     }
 
     @Test
-    void bootstrapContainsOnlyTheTwoSupportedRolesAndSelfPasswordPermission() {
+    void bootstrapSeedsExactlyTheAhrPermissionCatalogForManagement() {
         assertEquals(2, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM roles", Integer.class));
-        assertEquals(2, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class));
+        assertEquals(10, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM role_permissions", Integer.class));
         assertEquals(2, jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM roles WHERE code IN ('MANAGEMENT', 'GATE_STAFF')", Integer.class));
-        assertEquals(1, jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM permissions WHERE code = 'SECURITY_CHANGE_OWN_PASSWORD'", Integer.class));
+        assertEquals(9, jdbcTemplate.queryForObject("SELECT COUNT(*) FROM permissions", Integer.class));
+        String ahrPermissions = "'APARTMENT_READ', 'APARTMENT_MANAGE', 'RESIDENT_READ', 'RESIDENT_MANAGE', "
+                + "'HOUSEHOLD_MEMBERSHIP_READ', 'HOUSEHOLD_MEMBERSHIP_MANAGE', "
+                + "'VEHICLE_RIGHT_READ', 'VEHICLE_RIGHT_MANAGE'";
+        assertEquals(8, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM permissions WHERE code IN (" + ahrPermissions + ")", Integer.class));
+        assertEquals(8, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM role_permissions rp "
+                        + "JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id "
+                        + "WHERE r.code = 'MANAGEMENT' AND p.code IN (" + ahrPermissions + ")", Integer.class));
+        assertEquals(0, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM role_permissions rp "
+                        + "JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id "
+                        + "WHERE r.code = 'GATE_STAFF' AND p.code IN (" + ahrPermissions + ")", Integer.class));
+        assertEquals(2, jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM role_permissions rp "
+                        + "JOIN permissions p ON p.id = rp.permission_id "
+                        + "WHERE p.code = 'SECURITY_CHANGE_OWN_PASSWORD'", Integer.class));
     }
 
     @Test

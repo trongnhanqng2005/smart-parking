@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, `ERD.pdf`  
-Implementation status: Backend authentication/RBAC and the server-rendered MANAGEMENT Web foundation (public sign-in and MANAGEMENT-protected application routes) are implemented as documented in [Authentication and RBAC](security/auth-rbac.md) and [Backend Architecture](architecture/backend-architecture.md); approved NV01–NV08 business workflows are not implemented.
+Implementation status: Backend authentication/RBAC, the server-rendered MANAGEMENT Web foundation, and the AHR-03 Apartment, AHR-04 Resident profile, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-07 Vehicle lookup/OWNER, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight lifecycle/guarantor-loss integration, AHR-10 Resident status lifecycle, and AHR-11 Membership/VehicleRight VOID subsets are implemented as documented in [Authentication and RBAC](security/auth-rbac.md) and [Backend Architecture](architecture/backend-architecture.md); the remaining approved NV01–NV08 business workflows are not implemented.
 
 ## Purpose
 

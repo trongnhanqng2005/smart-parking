@@ -1,6 +1,7 @@
 package vn.edu.huit.smartparking.backend.security.service;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,23 @@ public class SecurityBootstrapService {
     public static final String MANAGEMENT = "MANAGEMENT";
     public static final String GATE_STAFF = "GATE_STAFF";
     public static final String CHANGE_OWN_PASSWORD = "SECURITY_CHANGE_OWN_PASSWORD";
+    private static final List<PermissionDefinition> MANAGEMENT_PERMISSIONS = List.of(
+            new PermissionDefinition("APARTMENT_READ", "Read apartments", "APARTMENT", "READ",
+                    "Read apartment records"),
+            new PermissionDefinition("APARTMENT_MANAGE", "Manage apartments", "APARTMENT", "MANAGE",
+                    "Create, correct and change apartment status"),
+            new PermissionDefinition("RESIDENT_READ", "Read residents", "RESIDENT", "READ",
+                    "Read resident records"),
+            new PermissionDefinition("RESIDENT_MANAGE", "Manage residents", "RESIDENT", "MANAGE",
+                    "Create, correct and change resident status"),
+            new PermissionDefinition("HOUSEHOLD_MEMBERSHIP_READ", "Read household memberships",
+                    "HOUSEHOLD_MEMBERSHIP", "READ", "Read household membership records"),
+            new PermissionDefinition("HOUSEHOLD_MEMBERSHIP_MANAGE", "Manage household memberships",
+                    "HOUSEHOLD_MEMBERSHIP", "MANAGE", "Manage household membership lifecycle"),
+            new PermissionDefinition("VEHICLE_RIGHT_READ", "Read vehicle rights", "VEHICLE_RIGHT", "READ",
+                    "Read vehicle-use rights"),
+            new PermissionDefinition("VEHICLE_RIGHT_MANAGE", "Manage vehicle rights", "VEHICLE_RIGHT", "MANAGE",
+                    "Manage vehicle-use rights"));
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
@@ -74,6 +92,9 @@ public class SecurityBootstrapService {
         Permission changePassword = permission();
         grant(management, changePassword);
         grant(gateStaff, changePassword);
+        for (PermissionDefinition definition : MANAGEMENT_PERMISSIONS) {
+            grant(management, permission(definition));
+        }
 
         if (createInitialManagement && !userRoleRepository.existsByRole_Code(MANAGEMENT)) {
             createInitialManagement(management);
@@ -98,6 +119,18 @@ public class SecurityBootstrapService {
             permission.setResource("SECURITY");
             permission.setAction("CHANGE_OWN_PASSWORD");
             permission.setDescription("Change the authenticated user's own password");
+            return permissionRepository.save(permission);
+        });
+    }
+
+    private Permission permission(PermissionDefinition definition) {
+        return permissionRepository.findByCode(definition.code()).orElseGet(() -> {
+            Permission permission = new Permission();
+            permission.setCode(definition.code());
+            permission.setName(definition.name());
+            permission.setResource(definition.resource());
+            permission.setAction(definition.action());
+            permission.setDescription(definition.description());
             return permissionRepository.save(permission);
         });
     }
@@ -147,4 +180,6 @@ public class SecurityBootstrapService {
         auditService.record("RBAC_BOOTSTRAP_MANAGEMENT", "USER", savedUser.getId().toString(), null,
                 null, "{\"role\":\"MANAGEMENT\"}");
     }
+
+    private record PermissionDefinition(String code, String name, String resource, String action, String description) {}
 }

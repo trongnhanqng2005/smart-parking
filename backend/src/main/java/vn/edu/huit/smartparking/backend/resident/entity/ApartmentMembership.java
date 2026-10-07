@@ -13,7 +13,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import vn.edu.huit.smartparking.backend.common.persistence.enums.RelationStatus;
+import vn.edu.huit.smartparking.backend.resident.enums.MembershipStatus;
 import vn.edu.huit.smartparking.backend.resident.enums.MembershipRole;
 
 @Entity
@@ -48,7 +48,13 @@ public class ApartmentMembership {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.ENUM)
     @Column(name = "status")
-    private RelationStatus status;
+    private MembershipStatus status;
+
+    @Column(name = "lifecycle_changed_at")
+    private LocalDateTime lifecycleChangedAt;
+
+    @Column(name = "lifecycle_reason", length = 500)
+    private String lifecycleReason;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

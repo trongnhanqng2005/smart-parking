@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md` — Yêu cầu 1 / NV01; `Ket_Qua_Khao_Sat_Bai_Xe.md` — §4.4, §5; `ERD.pdf` — bảng resident/apartment/vehicle/media/verification  
-Implementation status: Not implemented.
+Implementation status: The Apartment create, list, detail, history and correction API subset is implemented under AHR-03. The Resident create/reuse, list, detail, history, exact identity lookup and correction API subset is implemented under AHR-04. The Household Membership add, list, detail, history, household-head assign, END and REVOKE subset is implemented under AHR-05. Household-head transfer and Apartment deactivate/reactivate are implemented under AHR-06. Existing Vehicle lookup and OWNER assignment/transfer are implemented under AHR-07. AUTHORIZED_USER grant and VehicleRight list/detail/history queries are implemented under AHR-08. VehicleRight END/REVOKE and guarantor-loss integration are implemented under AHR-09. Resident status lifecycle and its guarantor-loss integration are implemented under AHR-10. Membership and VehicleRight VOID commands are implemented under AHR-11. Vehicle creation, identity verification and the remaining NV01 workflows are not implemented.
 
 ## Source
 
@@ -57,7 +57,7 @@ Implementation status: Not implemented.
 
 ## State Changes
 
-ERD định nghĩa trạng thái căn hộ, cư dân, quan hệ membership/vehicle relation và `verification_result`. Nguồn nêu kết quả xác minh và quyền có hiệu lực. Chuyển trạng thái chi tiết giữa các enum trạng thái hồ sơ không được quy định đầy đủ: **Not specified by approved sources.**
+ERD định nghĩa trạng thái căn hộ, cư dân, quan hệ membership/vehicle relation và `verification_result`. Nguồn NV01 nêu kết quả xác minh và quyền có hiệu lực nhưng không quy định đầy đủ chuyển trạng thái hồ sơ: **Not specified by approved sources.** Quyết định dự án riêng tại AHR-10 phê duyệt năm hướng Resident status; AHR-11 materializes the separate created-in-error VOID lifecycle. Không xem những quyết định này là quy tắc từ nguồn NV01 gốc.
 
 ## AI Involvement
 
@@ -72,6 +72,60 @@ AI/face matching tạo scores/kết quả cho ba so khớp; NV01 cần ghi nhậ
 ## Audit Requirements
 
 Mọi lần xem/sửa/xóa hồ sơ phải có audit log. Thao tác thủ công liên quan cũng phải truy ra tài khoản, thời gian, lý do và ảnh bằng chứng khi áp dụng.
+
+### Implemented AHR-03/AHR-04/AHR-05/AHR-06/AHR-07/AHR-08/AHR-09/AHR-10/AHR-11 audit behavior
+
+- Apartment create/correction and successful detail reads are audited; Apartment list and history requests are not.
+- Resident creation/reuse, correction and successful detail reads are audited. Every exact identity lookup request is audited once, including not-found outcomes. Resident list and history requests are not.
+- Membership add, household-head assignment, END, REVOKE and successful detail reads are audited. Membership list and history requests are not; history returns only sanitized audit fields.
+- AHR-06 household-head transfer audits the ended source Membership and the new Membership in one transaction. Apartment deactivate/reactivate and any nested Membership ENDs are audited in the same transaction as their state changes.
+- AHR-07 Vehicle list lookup is not audited; successful Vehicle detail reads are audited. OWNER assignment and transfer-out/transfer-in events are audited in the same transaction as their relation changes.
+- AHR-08 AUTHORIZED_USER grant and successful VehicleRight detail reads are audited. VehicleRight list and history reads are not audited. Grant audit records identify the management actor separately from the business guarantor and affected Resident relation.
+- AHR-09 direct VehicleRight END/REVOKE and automatic guarantor-loss END/cancellation are audited in the same transaction as their source and relation changes. Automatic loss preserves the original guarantor fields, identifies the source command actor, and uses the source reason; it does not copy Resident profile data.
+- AHR-10 Resident status transitions, explicit nested Membership/VehicleRight actions and automatic dependent-guarantor END/cancellation are audited in the same transaction. Audit data identifies relation IDs, target status, reason and actor without copying Resident profile data.
+- AHR-11 Membership and VehicleRight VOID mutations, plus provably dependent AUTHORIZED_USER VOID cascades, are audited atomically with sanitized relation IDs, status, interval, lifecycle time, reason and actor. VOID does not physically delete rows or rewrite `valid_from`/`valid_to`; it is distinct from END, REVOKE and PRE_EFFECTIVE_CANCELLED.
+- Audit data is sanitized: it does not include the full identity number, request/response snapshots or other unnecessary sensitive profile data. Resident summaries and history items do not embed the full Resident profile.
+- This describes the implemented API subset; remaining NV01 operations retain the broader audit requirements above.
+
+### Implemented AHR-09 VehicleRight lifecycle behavior
+
+- Direct END and REVOKE apply to an existing VehicleRight and require `valid_from < effective_at <= command_time`; pre-start explicit REVOKE and future-effective direct commands are rejected. END sets `INACTIVE`; REVOKE sets `REVOKED`; both store `effective_at` in `valid_to` and retain command time/reason in lifecycle metadata.
+- Loss of a guarantor chain through membership END/REVOKE, household-head transfer, Apartment deactivation with explicit membership ENDs, OWNER transfer, or direct OWNER END/REVOKE invalidates dependent AUTHORIZED_USER grants atomically. At `T <= valid_from`, the grant becomes `PRE_EFFECTIVE_CANCELLED` with `valid_to = NULL`; at `T > valid_from`, it becomes `INACTIVE` with `valid_to = T`. Automatic changes set `lifecycle_changed_at = T` and preserve guarantor history.
+- Resident status transitions are only `ACTIVE → INACTIVE`, `INACTIVE → ACTIVE`, `ACTIVE → BLOCKED`, `BLOCKED → ACTIVE` and `BLOCKED → INACTIVE`; `INACTIVE → BLOCKED` is rejected. Every status command requires MANAGEMENT, the resident-management permission, a nonblank reason and an audit record.
+- `INACTIVE` preserves history and is guarded: effective Memberships and direct/effective VehicleRight authority must be explicitly ended or revoked in the same command, unless an explicit Membership/OWNER action already handles a dependent grant. `BLOCKED` preserves Membership and OWNER history while atomically ending dependent AUTHORIZED_USER grants at the status-change time; grants with `T <= valid_from` become `PRE_EFFECTIVE_CANCELLED`, and grants with `T > valid_from` become `INACTIVE` with `valid_to=T`. Reactivation does not restore ended or cancelled history.
+- Explicit nested actions use `HOUSEHOLD_MEMBERSHIP_MANAGE` for Membership effects and `VEHICLE_RIGHT_MANAGE` for VehicleRight effects. Status, nested relation changes and audits use the approved Resident → Apartment → Vehicle → relation lock order and commit or roll back together.
+
+### Implemented AHR-11 VOID behavior (approved project decisions; not original NV01/ERD rules)
+
+- `VOID` means the source relation was created in error. Membership and VehicleRight rows remain in history; only `status`, `lifecycle_changed_at` and `lifecycle_reason` change. Existing `valid_from` and `valid_to` are preserved, so VOID is not an effective-time END or REVOKE.
+- Management may VOID a Membership or VehicleRight in `ACTIVE`, `INACTIVE` or `REVOKED` state. Repeated VOID and direct VehicleRight VOID from `PRE_EFFECTIVE_CANCELLED` return a relation-state conflict. Every command requires a nonblank reason and the corresponding management permission.
+- Voiding a Membership or OWNER VOID-cascades AUTHORIZED_USER relations only where the existing guarantor/context and validity/lifecycle data prove that source interval. Cascade includes dependent ACTIVE/scheduled and terminal `INACTIVE`, `REVOKED` or `PRE_EFFECTIVE_CANCELLED` history; ambiguous historical source intervals are left unchanged rather than risking VOID of an unrelated grant. Parent/cascade changes and audit records share one transaction.
+
+These VOID meanings, allowed source states, cross-module effects and the conservative handling of unprovable historical dependencies are AHR project decisions, not requirements established by the original NV01 or ERD sources.
+
+### AHR review-remediation — AUTHORIZED_USER grant interval bounds
+
+- The requested AUTHORIZED_USER interval must be contained within every effective guarantor source interval: the OWNER relation, and for a HOUSEHOLD_HEAD grant, both the head Membership and the OWNER Membership in the selected Apartment context.
+- Intervals are half-open, so a requested `valid_to` equal to the source `valid_to` is allowed. A null/unbounded requested end is rejected when any required source interval has a finite end. The server does not shorten the request; an interval extending beyond a source returns `GUARANTOR_CHAIN_CONFLICT`.
+- This is an approved AHR review-remediation decision applied to the AHR-08 grant contract, not a rule from the original NV01 or ERD sources.
+
+### AHR review-remediation — future OWNER transfer effects
+
+- For a future OWNER transfer at `T`, an applicable AUTHORIZED_USER grant whose `valid_from < T` stays `ACTIVE` with `valid_to=T` until the due-time processor runs. The half-open interval makes it ineffective at and after `T`, even if processing is delayed.
+- The transfer transaction stores one durable pending transition with `T`, the transfer reason and source actor. At/after `T`, processing marks the grant `INACTIVE`, records `lifecycle_changed_at=T`, and writes the automatic guarantor-loss audit using the original actor/reason. Transfer state, pending effects and transfer audits commit or roll back together.
+- A grant with `valid_from >= T` is immediately `PRE_EFFECTIVE_CANCELLED` with no `valid_to`; it never becomes effective. This OWNER-transfer behavior is an approved AHR review-remediation decision, not an original NV01/ERD rule. Future household-head transfer behavior is implemented separately under AHRR-05.
+
+### AHR review-remediation — future household-head transfer effects
+
+- For a future household-head transfer at `T`, the previous head Membership remains `ACTIVE` with `valid_to=T`, and the successor Membership starts `ACTIVE` at `T`. Their half-open intervals switch at the transfer instant.
+- An applicable AUTHORIZED_USER grant with `valid_from < T` remains `ACTIVE` with `valid_to=T` and a durable pending transition until due-time processing marks it `INACTIVE` at `T`. Before processing it remains effective before `T` and ineffective at/after `T`; the transition audit retains the household-head transfer actor/reason and original guarantor/context.
+- A dependent grant with `valid_from >= T` is immediately `PRE_EFFECTIVE_CANCELLED` with no `valid_to`. Membership changes, pending effects and transfer audits commit or roll back together under the resident → Apartment → Vehicle → relation lock order. This is an approved AHR review-remediation decision, not an original NV01/ERD rule.
+
+### AHR review-remediation — automatic versus explicit effect permissions
+
+- Automatic dependent VehicleRight changes inherit the permission of the source command that caused the authority loss; they do not require an additional VehicleRight or Household Membership permission from the actor.
+- Explicit nested Membership actions require `HOUSEHOLD_MEMBERSHIP_MANAGE`; explicit nested VehicleRight actions require `VEHICLE_RIGHT_MANAGE`. For example, a Resident status command requires `RESIDENT_MANAGE` for its automatic BLOCKED guarantor effects, while supplied nested action lists require their respective owner permissions.
+- This is an approved AHR review-remediation authorization decision, not an original NV01/ERD rule.
 
 ## Acceptance Scenarios
 

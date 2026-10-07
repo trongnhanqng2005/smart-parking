@@ -1,6 +1,6 @@
 # Backend Authentication and RBAC
 
-Status: Implemented backend capability; the authentication and schema decisions in this document are project-approved. Business workflow permission catalogs remain deferred until their endpoints exist.
+Status: Implemented backend capability; the authentication and schema decisions in this document are project-approved. The AHR permission catalog and AHR-03 Apartment, AHR-04 Resident profile, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-07 Vehicle lookup/OWNER, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight lifecycle/guarantor-loss, AHR-10 Resident status, and AHR-11 Membership/VehicleRight VOID API subsets are implemented; other business workflows remain deferred.
 
 ## Purpose and business context
 
@@ -30,10 +30,11 @@ Role membership is resolved from `user_roles`; permissions are resolved from `ro
 | Change own password | Yes, with current password | Yes, with current password | Yes; `SECURITY_CHANGE_OWN_PASSWORD` is assigned to both roles |
 | Operate gate/shift | Only with the management user assigned to an open shift for the requested lane | Only with the user assigned to an open shift for the requested lane | Shared `ShiftAuthorizationService` boundary only; no gate endpoint |
 | Review management-required exceptions / resolve offline conflicts | Management authority is required, in addition to the relevant workflow conditions | No | Future NV03–NV07 capability; no permission seeded |
-| Manage resident profiles, pricing, payments, reports, media or audit | Within a specific approved permission and workflow | Only the shift-limited task/data specifically authorized | Future NV01–NV08 capability; no business permissions or endpoints seeded |
+| Manage resident profiles and household/vehicle rights | Within the AHR permission catalog and its approved workflow | No AHR permissions | AHR-02 seeds eight MANAGEMENT-only permissions; AHR-03 implements the Apartment subset, AHR-04 the Resident profile subset, AHR-05 Membership lifecycle, AHR-06 household-head transfer/Apartment status, AHR-07 existing Vehicle lookup/OWNER assignment/transfer, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight lifecycle/guarantor-loss integration, AHR-10 Resident status and AHR-11 Membership/VehicleRight VOID |
+| Manage pricing, payments, reports, media or audit | Within a specific approved permission and workflow | Only the shift-limited task/data specifically authorized | Future NV01–NV08 capability; no permissions or endpoints seeded for these capabilities |
 | Administer user accounts or role/permission assignments | Highest role, subject to future management APIs | No | Account/role administration endpoints are not part of this auth slice |
 
-Possessing `MANAGEMENT` does not bypass business safety or shift checks. The current permission catalog contains only the self-password-change permission needed by this capability. Only ACTIVE accounts can authenticate or perform protected authenticated operations. Future permission codes are added with the relevant capability rather than seeded in advance.
+Possessing `MANAGEMENT` does not bypass business safety or shift checks. The permission catalog contains `SECURITY_CHANGE_OWN_PASSWORD` for both roles and the eight AHR permissions for MANAGEMENT only. Each explicit AHR operation requires its source permission. Under the accepted AHR review-remediation decision, automatically triggered dependent effects inherit the source command's permission; only explicitly submitted nested Membership or VehicleRight actions require the corresponding additional manage permission. Only ACTIVE accounts can authenticate or perform protected authenticated operations. Other future permission codes are added with their relevant capability rather than seeded in advance.
 
 ## Web session and REST JWT architecture
 
@@ -54,6 +55,7 @@ Both channels use the same `users`, `user_roles`, `roles`, `role_permissions` an
 
 - `POST /api/auth/login` continues to support ACTIVE MANAGEMENT and GATE_STAFF accounts. Denial of a GATE_STAFF Web attempt does not change REST/WinForms eligibility or REST login behavior.
 - REST requests under `/api/**` are stateless and authenticate with `Authorization: Bearer <access_token>`; CSRF is disabled only on this stateless chain.
+- Requests under `/api/management/**` require the `MANAGEMENT` role in addition to Bearer authentication. Each explicit AHR operation must also require its matching source permission from current database grants. AHR-02 established the catalog and boundary; AHR-03 implements the Apartment subset, AHR-04 the Resident subset, AHR-05 the Household Membership subset, AHR-06 the household-head/Apartment lifecycle subset, AHR-07 the existing Vehicle/OWNER subset, AHR-08 the AUTHORIZED_USER grant/query subset, AHR-09 the VehicleRight lifecycle subset, AHR-10 Resident status and AHR-11 Membership/VehicleRight VOID. Explicit nested effects require their owner-module manage permission; automatically triggered dependent effects inherit the source command permission.
 - Login issues a signed HS256 JWT with a 12-hour default lifetime configurable through `smart-parking.security.jwt.access-token-ttl`.
 - Claims are `iss=smart-parking`, `aud=smart-parking-api`, `sub=<users.id>`, `iat`, `exp`, `jti` and `cv` (the credential-change version). The token has no role, permission or shift claims.
 - The server pins HS256 and validates signature, issuer, audience and timestamps without expiry leeway. For every validly signed token, the current ACTIVE account and its current RBAC grants are loaded server-side; `cv` must match the current `credential_changed_at` value.
@@ -71,7 +73,20 @@ Both channels use the same `users`, `user_roles`, `roles`, `role_permissions` an
 
 ## Initial roles and MANAGEMENT bootstrap
 
-At startup, the backend idempotently creates exactly the `MANAGEMENT` and `GATE_STAFF` role records, the `SECURITY_CHANGE_OWN_PASSWORD` permission and grants that permission to both roles. It does not seed future NV business permissions.
+At startup, the backend idempotently creates exactly the `MANAGEMENT` and `GATE_STAFF` role records, `SECURITY_CHANGE_OWN_PASSWORD` with grants to both roles, and these AHR permissions with grants to MANAGEMENT only:
+
+| Permission | Resource | Action |
+|---|---|---|
+| `APARTMENT_READ` | `APARTMENT` | `READ` |
+| `APARTMENT_MANAGE` | `APARTMENT` | `MANAGE` |
+| `RESIDENT_READ` | `RESIDENT` | `READ` |
+| `RESIDENT_MANAGE` | `RESIDENT` | `MANAGE` |
+| `HOUSEHOLD_MEMBERSHIP_READ` | `HOUSEHOLD_MEMBERSHIP` | `READ` |
+| `HOUSEHOLD_MEMBERSHIP_MANAGE` | `HOUSEHOLD_MEMBERSHIP` | `MANAGE` |
+| `VEHICLE_RIGHT_READ` | `VEHICLE_RIGHT` | `READ` |
+| `VEHICLE_RIGHT_MANAGE` | `VEHICLE_RIGHT` | `MANAGE` |
+
+`GATE_STAFF` receives none of those eight permissions. Permission authorities are resolved from current database grants for each REST Bearer request and authenticated Web request. No other future NV business permissions are seeded.
 
 If no management-role assignment exists, the initial ACTIVE management account must be supplied through local/environment configuration:
 
@@ -162,6 +177,152 @@ Request:
 
 Success `204 No Content`. The current password is verified; the new value must differ and meet policy. Previously issued JWTs fail on the next request because their `cv` no longer matches. No replacement token is issued.
 
+### Apartment management — AHR-03
+
+All routes require Bearer authentication, the `MANAGEMENT` role, and the listed current database permission. Request and response JSON uses `snake_case`.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `GET /api/management/apartments` | `APARTMENT_READ` | Optional exact `building` and `apartment_code` filters use the AHR-01 canonical keys; `page` defaults to 0, `size` defaults to 20 and is capped at 100. Returns `{items,page,size,total_items}` of `ApartmentSummary {id,building,apartment_code,floor_no,status}`, ordered by `created_at` descending then `id` descending. |
+| `POST /api/management/apartments` | `APARTMENT_MANAGE` | `{building,apartment_code,floor_no?}`; server assigns ID, timestamps and `ACTIVE`. Returns `ApartmentDetail {id,building,apartment_code,floor_no,status,created_at,updated_at}` with 201. A duplicate canonical identity returns 409 `APARTMENT_IDENTITY_CONFLICT`. |
+| `GET /api/management/apartments/{id}` | `APARTMENT_READ` | Returns `ApartmentDetail`; the detail read is audited. |
+| `GET /api/management/apartments/{id}/history` | `APARTMENT_READ` | Uses the common zero-based pagination and ordering. Returns sanitized `HistoryItem {action,at,reason,actor_user_id,subject_id}`; it does not return audit snapshots. |
+| `PATCH /api/management/apartments/{id}/correction` | `APARTMENT_MANAGE` | Optional `{building?,apartment_code?,floor_no?,reason?}`. Omitted fields remain unchanged; explicit `floor_no: null` clears the floor. An identity change is determined by the normalized key pair and requires a nonblank `reason`. Returns `ApartmentDetail`; duplicate identity returns 409 `APARTMENT_IDENTITY_CONFLICT`, and a lock conflict returns 409 `CONCURRENT_MODIFICATION`. |
+
+Invalid input returns 400 `INVALID_REQUEST`; an unknown Apartment returns 404 `NOT_FOUND`; authentication and authorization retain the existing 401/403 behavior. Create and correction mutations are audited. Apartment list and history requests are not audited; successful detail reads are audited without recording response snapshots. These routes do not implement Apartment status changes or other NV01 workflows.
+
+### Resident management — AHR-04
+
+All routes require Bearer authentication, the `MANAGEMENT` role, and the listed current database permission. Request and response JSON uses `snake_case`.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `GET /api/management/residents` | `RESIDENT_READ` | Optional `full_name` partial-contains filter; `page` defaults to 0, `size` defaults to 20 and is capped at 100. Returns `{items,page,size,total_items}` of `ResidentSummary {id,full_name,status}`, ordered by `created_at` descending then `id` descending. The list omits identity number, date of birth, phone and email. |
+| `POST /api/management/residents` | `RESIDENT_MANAGE` | `{full_name,identity_number,date_of_birth?,phone?,email?}`. A new Resident starts `ACTIVE` and returns `ResidentDetail` with 201. A matching normalized identity reuses the existing Resident without overwriting its profile and returns its detail with 200. |
+| `GET /api/management/residents/{id}` | `RESIDENT_READ` | Returns `ResidentDetail {id,full_name,identity_number,date_of_birth,phone,email,status,created_at,updated_at}`; the sensitive detail read is audited. |
+| `POST /api/management/residents/lookup` | `RESIDENT_READ` | Body `{identity_number}`; performs an exact normalized identity lookup without placing the identifier in the URL. Returns `ResidentDetail` with 200 or `NOT_FOUND` with 404. Exactly one sanitized request audit is recorded for each lookup, including not-found outcomes. |
+| `GET /api/management/residents/{id}/history` | `RESIDENT_READ` | Uses the common zero-based pagination and ordering. Returns sanitized `HistoryItem {action,at,reason,actor_user_id,subject_id}`; it does not return audit snapshots. |
+| `PATCH /api/management/residents/{id}/correction` | `RESIDENT_MANAGE` | Optional `{full_name?,identity_number?,date_of_birth?,phone?,email?,reason?}`. Omitted fields remain unchanged; explicit `null` clears `date_of_birth`, `phone` or `email`. Changing identity number requires a nonblank reason. Returns `ResidentDetail`; duplicate identity returns 409 `RESIDENT_IDENTITY_CONFLICT`, and a lock conflict returns 409 `CONCURRENT_MODIFICATION`. |
+
+Invalid input returns 400 `INVALID_REQUEST`; an unknown Resident or exact lookup miss returns 404 `NOT_FOUND`; authentication and authorization retain the existing 401/403 behavior. A concurrent create whose identity cannot be resolved as a reuse returns 409 `CONCURRENT_MODIFICATION`. Resident creation/reuse, correction, successful detail reads and every exact identity lookup request are audited without full identity values or profile snapshots. Resident list and history requests are not audited. Resident status lifecycle is implemented separately under AHR-10; household Membership operations remain in AHR-05/AHR-06.
+
+### Household Membership management — AHR-05
+
+All routes require Bearer authentication, the `MANAGEMENT` role, and the listed current database permission. Membership responses contain relation identifiers and lifecycle fields only; they do not embed Resident profiles. List/history pagination uses the common zero-based contract, with stable descending `created_at` then `id` ordering.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `GET /api/management/memberships` | `HOUSEHOLD_MEMBERSHIP_READ` | Optional exact `apartment_id` and `resident_id` filters; `page` defaults to 0, `size` defaults to 20 and is capped at 100. Returns `{items,page,size,total_items}` of `MembershipDetail`. |
+| `GET /api/management/memberships/{id}` | `HOUSEHOLD_MEMBERSHIP_READ` | Returns `MembershipDetail`; successful detail reads are audited. |
+| `GET /api/management/memberships/{id}/history` | `HOUSEHOLD_MEMBERSHIP_READ` | Returns paged sanitized `HistoryItem {action,at,reason,actor_user_id,subject_id}`; audit snapshots are not returned. |
+| `POST /api/management/memberships` | `HOUSEHOLD_MEMBERSHIP_MANAGE` | `{apartment_id,resident_id,member_role:MEMBER,valid_from,valid_to?,reason}`; creates an `ACTIVE` membership and returns `MembershipDetail` with 201. Apartment and Resident must be `ACTIVE`. |
+| `POST /api/management/apartments/{id}/household-head/assign` | `HOUSEHOLD_MEMBERSHIP_MANAGE` | `{resident_id,valid_from,valid_to?,reason}`; creates an `ACTIVE` `HOUSEHOLD_HEAD` membership and returns `MembershipDetail` with 201. |
+| `POST /api/management/memberships/{id}/end` | `HOUSEHOLD_MEMBERSHIP_MANAGE` | `{effective_at,reason}`; `valid_from < effective_at <= command time`, and if the membership already has `valid_to`, `effective_at` must not exceed it. Sets `INACTIVE`, stores `effective_at` in `valid_to`, and records the command time/reason in lifecycle metadata. |
+| `POST /api/management/memberships/{id}/revoke` | `HOUSEHOLD_MEMBERSHIP_MANAGE` | Same `{effective_at,reason}` time bounds as END. Sets `REVOKED`, stores the effective end in `valid_to`, and records the command time/reason in lifecycle metadata. |
+| `POST /api/management/memberships/{id}/void` | `HOUSEHOLD_MEMBERSHIP_MANAGE` | `{reason}`; marks a Membership created in error as `VOID`, preserving its interval and row, and returns `MembershipDetail` with 200. |
+
+Intervals are half-open: `valid_from <= t < valid_to` when `valid_to` exists; a missing `valid_to` is unbounded. `valid_to` must be later than `valid_from`. `ACTIVE` memberships may be scheduled in the future. Overlapping `ACTIVE` memberships for the same Resident and Apartment return 409 `MEMBERSHIP_OVERLAP`; overlapping `HOUSEHOLD_HEAD` memberships in one Apartment return 409 `HOUSEHOLD_HEAD_CONFLICT`. Adjacent intervals are permitted. Inactive Apartment/Resident targets return 409 `STATUS_CONFLICT`; an invalid lifecycle state/time returns 409 `RELATION_STATE_CONFLICT`; unresolved lock/concurrency failures return 409 `CONCURRENT_MODIFICATION`. Unknown Apartment, Resident or Membership IDs return 404 `NOT_FOUND`; invalid input returns 400 `INVALID_REQUEST`.
+
+Membership creation, household-head assignment, END, REVOKE and successful detail reads are audited with sanitized relation IDs/role/interval/reason data. List and history requests are not audited. END/REVOKE are immediate terminal commands; future `effective_at` values and pre-start REVOKE are not supported by this subset. Household-head transfer, Membership VOID and Apartment/Resident status changes remain outside AHR-05.
+
+### Membership VOID — AHR-11
+
+VOID requires Bearer authentication, the `MANAGEMENT` role and `HOUSEHOLD_MEMBERSHIP_MANAGE`. Request JSON is `snake_case`.
+
+| Method/path | Request | Response/status |
+|---|---|---|
+| `POST /api/management/memberships/{id}/void` | `{reason}` | Updated `MembershipDetail`, 200 |
+
+VOID is allowed from `ACTIVE`, `INACTIVE` and `REVOKED`; repeated VOID returns 409 `RELATION_STATE_CONFLICT`. The command preserves `valid_from` and `valid_to`, sets status `VOID`, and writes command time/reason to lifecycle metadata. Missing Membership returns 404 `NOT_FOUND`; blank/oversized reason or invalid ID returns 400 `INVALID_REQUEST`. The Membership and any provably dependent vehicle-right cascade/audits commit or roll back together.
+
+### Household-head transfer and Apartment lifecycle — AHR-06
+
+All routes require Bearer authentication, the `MANAGEMENT` role and the current listed permission. Request/response JSON is `snake_case`.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `POST /api/management/apartments/{id}/household-head/transfer` | `HOUSEHOLD_MEMBERSHIP_MANAGE` | `{from_membership_id,to_resident_id,effective_at,reason}`. Returns the new `MembershipDetail` with 200. The source must be the current effective household head, and the target Resident and Apartment must be ACTIVE. |
+| `POST /api/management/apartments/{id}/deactivate` | `APARTMENT_MANAGE`, plus `HOUSEHOLD_MEMBERSHIP_MANAGE` when `membership_ends` is nonempty | `{reason,membership_ends?:[{membership_id,effective_at,reason}]}`. Returns `ApartmentDetail` with 200. If effective memberships exist, every one must be explicitly ended in this same transaction. |
+| `POST /api/management/apartments/{id}/reactivate` | `APARTMENT_MANAGE` | `{reason}`. Returns `ApartmentDetail` with 200; prior ended/revoked Memberships are not restored. |
+
+Household-head transfer permits a future `effective_at`: the old Membership remains `ACTIVE` with `valid_to=effective_at`, and the new `ACTIVE` Membership starts at the same instant. Their half-open intervals meet without overlap, and the effective-head predicate switches at that time. Both Membership histories are written in the same transaction. Apartment deactivation records the Apartment transition and any explicit Membership ENDs atomically. Guard/status conflicts return 409 `STATUS_CONFLICT`; invalid nested Membership state/effective time returns 409 `RELATION_STATE_CONFLICT`; overlap/head conflicts retain the AHR-05 codes; unresolved lock-set races return 409 `CONCURRENT_MODIFICATION`. All state-changing operations require a nonblank reason and are audited; no vehicle relations are changed in AHR-06.
+
+### Existing Vehicle lookup and OWNER management — AHR-07
+
+All routes require Bearer authentication, the `MANAGEMENT` role and the listed current database permission. Request/response JSON is `snake_case`.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `GET /api/management/vehicles` | `VEHICLE_RIGHT_READ` | Optional `plate_number` exact-matches `vehicles.plate_normalized`; callers supply the already normalized value and the backend does not transform it. `page` defaults to 0, `size` defaults to 20 and is capped at 100. Returns `{items,page,size,total_items}` of `VehicleSummary {id,plate_number,vehicle_category_id,brand,status}`, ordered by `created_at` descending then `id` descending. List results are not audited. |
+| `GET /api/management/vehicles/{id}` | `VEHICLE_RIGHT_READ` | Returns the same minimized `VehicleSummary`; a successful detail read is audited. |
+| `POST /api/management/vehicles/{id}/owner` | `VEHICLE_RIGHT_MANAGE` | `{resident_id,valid_from,valid_to?,reason}`; creates an ACTIVE OWNER relation on the existing Vehicle and returns `VehicleRightDetail` with 201. It never creates a Vehicle. |
+| `POST /api/management/vehicles/{id}/owner/transfer` | `VEHICLE_RIGHT_MANAGE` | `{from_relation_id,to_resident_id,effective_at,reason}`; atomically ends the current effective OWNER interval and creates the successor OWNER, returning the new `VehicleRightDetail` with 200. |
+
+OWNER assignment and transfer require a nonblank reason and audit relation changes with Vehicle/Resident IDs and interval metadata only. An INACTIVE Resident cannot receive an OWNER relation. A BLOCKED Resident may hold an OWNER relation, but BLOCKED use restrictions still apply; Vehicle status does not gate these commands. A future transfer keeps the old OWNER ACTIVE with `valid_to=effective_at` and creates the new ACTIVE OWNER with `valid_from=effective_at`; their half-open intervals switch at that instant. Assignment/transfer locks involved Residents in ascending ID order, then the Vehicle and overlapping relation rows, and revalidates the OWNER and Resident–Vehicle intervals before mutation.
+
+Invalid input returns 400 `INVALID_REQUEST`; a missing Vehicle, Resident or source relation returns 404 `NOT_FOUND`. An overlapping OWNER returns 409 `VEHICLE_OWNER_CONFLICT`; overlapping relations for the same Resident–Vehicle pair return 409 `VEHICLE_RIGHT_OVERLAP`; an INACTIVE Resident returns 409 `STATUS_CONFLICT`; an invalid transfer source/time returns 409 `RELATION_STATE_CONFLICT`; unresolved lock failures return 409 `CONCURRENT_MODIFICATION`. List/detail and OWNER commands do not create Vehicle records or implement AUTHORIZED_USER guarantor/lifecycle behavior.
+
+### AUTHORIZED_USER grant and VehicleRight queries — AHR-08
+
+All routes require Bearer authentication, the `MANAGEMENT` role and the current listed permission. Relation responses contain IDs and lifecycle/guarantor fields only; they never embed Resident profiles.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `GET /api/management/vehicle-rights` | `VEHICLE_RIGHT_READ` | Optional exact `vehicle_id`, `resident_id`, and `relation_type` filters; common pagination/order. Returns paged `VehicleRightDetail`. List reads are not audited. |
+| `GET /api/management/vehicle-rights/{id}` | `VEHICLE_RIGHT_READ` | Returns `VehicleRightDetail`; a successful detail read is audited. |
+| `GET /api/management/vehicle-rights/{id}/history` | `VEHICLE_RIGHT_READ` | Returns paged sanitized `HistoryItem`; audit snapshots are not returned and history reads are not audited. |
+| `POST /api/management/vehicle-rights` | `VEHICLE_RIGHT_MANAGE` | `{vehicle_id,resident_id,guarantor_type,guarantor_resident_id,guarantor_apartment_id?,valid_from,valid_to?,reason}`. Creates an `ACTIVE` `AUTHORIZED_USER` relation on an existing Vehicle and returns `VehicleRightDetail` with 201. The server controls relation type/status and lifecycle metadata. |
+
+The guarantor parties and context are validated at the new grant's `valid_from`; an ACTIVE grant may be scheduled. For `guarantor_type=OWNER`, `guarantor_resident_id` must identify the effective OWNER at that instant and `guarantor_apartment_id` must be omitted. For `HOUSEHOLD_HEAD`, the named guarantor must have an effective `HOUSEHOLD_HEAD` membership in the supplied Apartment A, an effective OWNER must exist for the Vehicle, that OWNER Resident must have an effective membership in the same Apartment A, and Apartment A must be ACTIVE at `valid_from`. Later guarantor authority loss is handled by AHR-09. The target Resident and named guarantor must be ACTIVE; an existing Vehicle is required but its status does not gate this grant. Face verification is not required and no gate decision is made.
+
+The entire requested grant interval must fit within every required guarantor source interval: the OWNER relation and, for `HOUSEHOLD_HEAD`, both the head Membership and the OWNER Membership in Apartment A. Because intervals are half-open, a grant `valid_to` equal to a source `valid_to` is allowed. A null/unbounded grant end is rejected when any required source interval is finite; the server does not truncate the request. An interval extending beyond a source returns 409 `GUARANTOR_CHAIN_CONFLICT`. This is an approved AHR review-remediation decision, not an original NV01/ERD rule.
+
+The target Resident–Vehicle interval must not overlap any existing ACTIVE relation for that pair, regardless of relation type. Other active relation rows are also checked for overlapping cardinality rules. A grant failure leaves no relation or audit record. A successful grant writes `VEHICLE_AUTHORIZED_USER_GRANTED`; audit data includes the system actor separately from the business guarantor and does not copy Resident profile data or identity numbers.
+
+Invalid input returns 400 `INVALID_REQUEST`; an unknown Vehicle, Resident, Apartment or VehicleRight returns 404 `NOT_FOUND`; an invalid guarantor chain returns 409 `GUARANTOR_CHAIN_CONFLICT`, a Resident/Apartment status restriction returns `STATUS_CONFLICT`, a duplicate Resident–Vehicle interval returns `VEHICLE_RIGHT_OVERLAP`, an existing overlapping OWNER returns `VEHICLE_OWNER_CONFLICT`, and unresolved lock-set changes return `CONCURRENT_MODIFICATION`. OWNER assignment/transfer and VehicleRight END/REVOKE/VOID are implemented in AHR-07/AHR-09/AHR-11 respectively.
+
+### Guarantor-loss integration and VehicleRight lifecycle — AHR-09
+
+All routes require Bearer authentication, the `MANAGEMENT` role and `VEHICLE_RIGHT_MANAGE`. The request/response JSON uses `snake_case`; responses remain the minimized `VehicleRightDetail` relation contract.
+
+| Method/path | Request | Response/status |
+|---|---|---|
+| `POST /api/management/vehicle-rights/{id}/end` | `{effective_at,reason}` | Updated VehicleRight, 200 |
+| `POST /api/management/vehicle-rights/{id}/revoke` | `{effective_at,reason}` | Updated VehicleRight, 200 |
+| `POST /api/management/vehicle-rights/{id}/void` | `{reason}` | Updated VehicleRight, 200 |
+
+Direct END/REVOKE require `valid_from < effective_at <= command_time`; future-effective commands and explicit pre-start REVOKE are rejected. END sets `INACTIVE`; REVOKE sets `REVOKED`; both store `effective_at` in `valid_to`, with command time and reason in lifecycle metadata. Explicit REVOKE is distinct from automatic guarantor-loss END.
+
+The same transaction handles dependent AUTHORIZED_USER grants when guarantor authority is lost through membership END/REVOKE, household-head transfer, Apartment deactivation with explicit membership ENDs, OWNER transfer, or direct OWNER END/REVOKE. For immediate losses, at `T <= valid_from` a scheduled grant becomes `PRE_EFFECTIVE_CANCELLED` with no `valid_to`; at `T > valid_from` it becomes `INACTIVE` with `valid_to=T`. A future OWNER or household-head transfer instead keeps an applicable grant ACTIVE with `valid_to=T`, stores a durable pending transition and ends it through due-time processing at `T`. The interval cutoff prevents effectiveness at or after `T` while processing is delayed. Grants starting at or after `T` are immediately `PRE_EFFECTIVE_CANCELLED`. Automatic changes preserve original guarantor/context fields and use the source command actor/reason in the terminal audit.
+
+`resident` declares the narrow `VehicleRightInvalidationPort`; the vehicle-owned implementation performs dependent relation writes and audits. Resident commands lock source Residents in ascending ID order and their Apartment before the port discovers/locks affected Vehicles and relation rows; existing Membership rows are locked after VehicleRight rows. Future household-head transfer calls the vehicle-owned deferred-effect operation through this port; no reverse dependency from `resident` to `vehicle` is introduced. OWNER lifecycle/transfer discovers and locks HOUSEHOLD_HEAD Apartment contexts before Vehicle rows, then locks relation rows before membership rows. Candidate discovery runs after source aggregate locks in a fresh read transaction; source Resident/Apartment locks stabilize that candidate set. The source command, invalidations, pending effects and audit records commit or roll back together.
+
+Invalid input returns 400 `INVALID_REQUEST`; unknown VehicleRight IDs return 404 `NOT_FOUND`; an inactive relation or invalid effective time returns 409 `RELATION_STATE_CONFLICT`; unresolved lock failures return 409 `CONCURRENT_MODIFICATION`. Resident status management is implemented by AHR-10; AHR-11 VOID is documented below.
+
+### Resident status lifecycle — AHR-10
+
+The command requires Bearer authentication, the `MANAGEMENT` role and `RESIDENT_MANAGE`. Each nonempty nested action list additionally requires its owner permission. Request/response JSON is `snake_case`.
+
+| Method/path | Permission | Contract |
+|---|---|---|
+| `POST /api/management/residents/{id}/status` | `RESIDENT_MANAGE`; plus `HOUSEHOLD_MEMBERSHIP_MANAGE` when `membership_actions` is nonempty and `VEHICLE_RIGHT_MANAGE` when `vehicle_right_actions` is nonempty | `{status,reason,membership_actions?:[{membership_id,action:END\|REVOKE,effective_at,reason}],vehicle_right_actions?:[{relation_id,action:END\|REVOKE,effective_at,reason}]}`. Returns `ResidentDetail` with 200. |
+
+Authorization distinguishes explicit nested actions from automatic dependent effects. An authorized source status command (including a BLOCKED transition) may carry its automatic guarantor-loss effects under `RESIDENT_MANAGE` without requiring `VEHICLE_RIGHT_MANAGE` or `HOUSEHOLD_MEMBERSHIP_MANAGE` as an extra permission. A nonempty `membership_actions` list requires `HOUSEHOLD_MEMBERSHIP_MANAGE`; a nonempty `vehicle_right_actions` list requires `VEHICLE_RIGHT_MANAGE`. The same source-permission rule applies to automatic effects of household-head/OWNER transfer and other guarantor-loss commands. This AHR review-remediation clarification is not an original ERD/NV01 permission rule.
+
+Only `ACTIVE → INACTIVE`, `INACTIVE → ACTIVE`, `ACTIVE → BLOCKED`, `BLOCKED → ACTIVE` and `BLOCKED → INACTIVE` are accepted. Invalid transitions and an INACTIVE guard failure return 409 `STATUS_CONFLICT`; invalid nested relation state/effective time returns 409 `RELATION_STATE_CONFLICT`; unresolved lock-set changes return 409 `CONCURRENT_MODIFICATION`. A referenced resource outside the target Resident's status effects returns 404 `NOT_FOUND`; malformed requests return 400 `INVALID_REQUEST`.
+
+INACTIVE requires all currently effective Memberships, direct VehicleRights and unhandled effective guarantor dependencies to be explicitly handled in the same command. Nested lifecycle actions require `valid_from < effective_at <= command_time`, and cannot extend beyond an existing `valid_to`. BLOCKED preserves Membership and OWNER history, but removes the Resident's guarantor authority: dependent grants become `PRE_EFFECTIVE_CANCELLED` at `T <= valid_from`, or `INACTIVE` with `valid_to=T` at `T > valid_from`. Reactivation does not restore ended Memberships or VehicleRights. A BLOCKED Resident cannot be a new AUTHORIZED_USER recipient or guarantor; a blocked OWNER may retain an existing OWNER relation.
+
+Resident, nested Membership/VehicleRight changes, automatic guarantor effects and their audits commit or roll back together. The transaction follows Resident → Apartment → Vehicle → relation lock order, revalidates discovered dependencies under lock and retries an expanded lock set from a fresh transaction when necessary. Only explicit nested actions receive their corresponding owner-module lifecycle audit; the final Resident status change is always audited with sanitized IDs/reasons, not a profile snapshot.
+
+### Membership and VehicleRight VOID — AHR-11
+
+VOID commands require Bearer authentication, the `MANAGEMENT` role and the resource's manage permission: `HOUSEHOLD_MEMBERSHIP_MANAGE` for Membership, `VEHICLE_RIGHT_MANAGE` for VehicleRight. Both bodies are `{reason}` and return the updated minimized relation detail with 200.
+
+VOID is allowed from `ACTIVE`, `INACTIVE` or `REVOKED`, and rejects already-VOID rows. VehicleRight VOID also rejects `PRE_EFFECTIVE_CANCELLED`, which records a valid scheduled grant that never became effective. The command sets `status=VOID`, preserves `valid_from`/`valid_to` and all guarantor/context history, and stores command time/reason in lifecycle metadata. It does not delete the row or turn VOID into END/REVOKE. Blank/oversized reasons and invalid IDs return 400 `INVALID_REQUEST`; unknown resource IDs return 404 `NOT_FOUND`; invalid source state returns 409 `RELATION_STATE_CONFLICT`.
+
+Voiding a Membership or OWNER invokes synchronous vehicle-owned cascading in the same transaction. Dependent AUTHORIZED_USER history is marked VOID, including `ACTIVE`, `INACTIVE`, `REVOKED` and `PRE_EFFECTIVE_CANCELLED`, when dependency on that source interval is provable from the stored guarantor/context and interval/lifecycle evidence. Ambiguous historical dependency is left unchanged rather than voiding a possibly unrelated relation. Every changed relation receives its owner-module VOID audit, and a failure rolls back the parent change, child changes and audits together. Direct AUTHORIZED_USER VOID does not affect its guarantor or sibling grants.
+
 ## Web interface
 
 ### Thymeleaf pages and shared shells
@@ -189,10 +350,11 @@ The login page uses the public layout. The home and account-security pages use t
 3. Web unsafe requests fail without CSRF; login rotates session ID; sessions expire after 30 minutes idle or 8 hours absolute; logout and password change invalidate the applicable session(s).
 4. REST login returns the Bearer contract with 12-hour default TTL, no refresh token, no permission/shift claims; REST logout only tells the client to discard the token; changing the JWT secret invalidates old tokens.
 5. BCrypt cost 12 is used; password minimum, 72-byte maximum, current-password check and changed-password invalidation are enforced; attempts throttle at five failures per normalized username/source-IP pair per 15 minutes without changing user status. Valid GATE_STAFF Web attempts count as failures, do not clear the throttle, receive a generic `401` before throttling, and may receive the existing `429` after the threshold.
-6. Initial bootstrap creates only the two roles and the implemented self-password permission/grants, requires controlled credentials when no management identity exists, and is safe to repeat without resetting credentials.
+6. Initial bootstrap creates only the two roles, the self-password permission/grants, and the eight AHR permissions/grants to MANAGEMENT only; it requires controlled credentials when no management identity exists and is safe to repeat without resetting credentials.
 7. Login outcomes, logout, password change and bootstrap grant/account events are audited without secrets; failed unknown identities are not attributed to a real user. Role-denied Web login uses `AUTH_LOGIN_FAILURE` with an internal denial reason and never records `AUTH_LOGIN_SUCCESS`, updates `last_login_at` or establishes a successful Web session.
 8. Gate context authorization requires the requesting MANAGEMENT or GATE_STAFF user to be assigned to the specified open shift and lane; it does not decide the gate outcome.
+9. The AHR-03 Apartment, AHR-04 Resident, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-07 existing Vehicle/OWNER, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight lifecycle/guarantor-loss, AHR-10 Resident status and AHR-11 Membership/VehicleRight VOID API subsets require their source MANAGEMENT-only permissions, return minimized lookup contracts, preserve authorized history/cardinality invariants and atomic cross-module changes under concurrency, and audit detail reads and mutations without recording full identity values. Only explicit nested actions require additional owner-module manage permissions; automatic dependent effects inherit the source command permission.
 
 ## Deferred scope
 
-No NV01–NV08 business screens or endpoints, user CRUD or role-assignment API, password recovery, refresh tokens, token blacklist, multi-key rotation, multi-instance throttle storage, trusted proxy/IP-forwarding policy, business permission seeds, gate business decision or WinForms offline/synchronization implementation are included. Offline actor changes remain historical evidence requiring NV07 review before side effects are replayed.
+No other NV01–NV08 business screens or endpoints beyond the AHR-03 Apartment, AHR-04 Resident profile, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-07 existing Vehicle lookup/OWNER assignment/transfer, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight END/REVOKE/guarantor-loss, AHR-10 Resident status and AHR-11 Membership/VehicleRight VOID subsets are included. Vehicle creation, user CRUD or role-assignment API, password recovery, refresh tokens, token blacklist, multi-key rotation, multi-instance throttle storage, trusted proxy/IP-forwarding policy, gate business decision or WinForms offline/synchronization implementation remain deferred. Offline actor changes remain historical evidence requiring NV07 review before side effects are replayed.

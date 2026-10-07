@@ -8,7 +8,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -29,7 +31,7 @@ import vn.edu.huit.smartparking.backend.security.repository.UserRoleRepository;
 
 class SecurityBootstrapServiceTests {
     @Test
-    void bootstrapsOnlyTwoRolesAndPasswordChangePermissionWithCanonicalManagementUser() {
+    void bootstrapsManagementPermissionCatalogAndSharedPasswordPermission() {
         RoleRepository roles = mock(RoleRepository.class);
         PermissionRepository permissions = mock(PermissionRepository.class);
         RolePermissionRepository grants = mock(RolePermissionRepository.class);
@@ -70,17 +72,47 @@ class SecurityBootstrapServiceTests {
         assertEquals(List.of("MANAGEMENT", "GATE_STAFF"),
                 roleCaptor.getAllValues().stream().map(Role::getCode).toList());
         ArgumentCaptor<Permission> permissionCaptor = ArgumentCaptor.forClass(Permission.class);
-        verify(permissions).save(permissionCaptor.capture());
-        assertEquals(SecurityBootstrapService.CHANGE_OWN_PASSWORD, permissionCaptor.getValue().getCode());
+        verify(permissions, org.mockito.Mockito.times(9)).save(permissionCaptor.capture());
+        assertEquals(Set.of(
+                "SECURITY_CHANGE_OWN_PASSWORD",
+                "APARTMENT_READ", "APARTMENT_MANAGE",
+                "RESIDENT_READ", "RESIDENT_MANAGE",
+                "HOUSEHOLD_MEMBERSHIP_READ", "HOUSEHOLD_MEMBERSHIP_MANAGE",
+                "VEHICLE_RIGHT_READ", "VEHICLE_RIGHT_MANAGE"),
+                permissionCaptor.getAllValues().stream()
+                        .map(Permission::getCode).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(Map.of(
+                        "APARTMENT_READ", "APARTMENT:READ",
+                        "APARTMENT_MANAGE", "APARTMENT:MANAGE",
+                        "RESIDENT_READ", "RESIDENT:READ",
+                        "RESIDENT_MANAGE", "RESIDENT:MANAGE",
+                        "HOUSEHOLD_MEMBERSHIP_READ", "HOUSEHOLD_MEMBERSHIP:READ",
+                        "HOUSEHOLD_MEMBERSHIP_MANAGE", "HOUSEHOLD_MEMBERSHIP:MANAGE",
+                        "VEHICLE_RIGHT_READ", "VEHICLE_RIGHT:READ",
+                        "VEHICLE_RIGHT_MANAGE", "VEHICLE_RIGHT:MANAGE"),
+                permissionCaptor.getAllValues().stream()
+                        .filter(permission -> !SecurityBootstrapService.CHANGE_OWN_PASSWORD.equals(permission.getCode()))
+                        .collect(java.util.stream.Collectors.toMap(
+                                Permission::getCode, permission -> permission.getResource() + ":" + permission.getAction())));
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(users).save(userCaptor.capture());
         assertEquals("manager.one", userCaptor.getValue().getUsername());
         assertEquals("bcrypt-hash", userCaptor.getValue().getPasswordHash());
         ArgumentCaptor<RolePermission> grantCaptor = ArgumentCaptor.forClass(RolePermission.class);
-        verify(grants, org.mockito.Mockito.times(2)).save(grantCaptor.capture());
-        assertEquals(List.of("GATE_STAFF", "MANAGEMENT"), grantCaptor.getAllValues().stream()
-                .map(grant -> grant.getRole().getCode()).sorted().toList());
-        verify(audit).record("RBAC_BOOTSTRAP_MANAGEMENT", "USER", "4", null, null,
+        verify(grants, org.mockito.Mockito.times(10)).save(grantCaptor.capture());
+        assertEquals(Set.of(
+                "SECURITY_CHANGE_OWN_PASSWORD",
+                "APARTMENT_READ", "APARTMENT_MANAGE",
+                "RESIDENT_READ", "RESIDENT_MANAGE",
+                "HOUSEHOLD_MEMBERSHIP_READ", "HOUSEHOLD_MEMBERSHIP_MANAGE",
+                "VEHICLE_RIGHT_READ", "VEHICLE_RIGHT_MANAGE"),
+                grantCaptor.getAllValues().stream()
+                        .filter(grant -> SecurityBootstrapService.MANAGEMENT.equals(grant.getRole().getCode()))
+                        .map(grant -> grant.getPermission().getCode()).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(Set.of(SecurityBootstrapService.CHANGE_OWN_PASSWORD), grantCaptor.getAllValues().stream()
+                .filter(grant -> SecurityBootstrapService.GATE_STAFF.equals(grant.getRole().getCode()))
+                .map(grant -> grant.getPermission().getCode()).collect(java.util.stream.Collectors.toSet()));
+        verify(audit).record("RBAC_BOOTSTRAP_MANAGEMENT", "USER", "12", null, null,
                 "{\"role\":\"MANAGEMENT\"}");
         verify(audit).record("RBAC_BOOTSTRAP_PERMISSION_GRANT", "ROLE_PERMISSION", "1:3", null, null,
                 "{\"role\":\"MANAGEMENT\",\"permission\":\"SECURITY_CHANGE_OWN_PASSWORD\"}");
@@ -116,7 +148,7 @@ class SecurityBootstrapServiceTests {
         bootstrap.initializeCatalog();
 
         verify(roles, org.mockito.Mockito.times(2)).save(any(Role.class));
-        verify(grants, org.mockito.Mockito.times(2)).save(any(RolePermission.class));
+        verify(grants, org.mockito.Mockito.times(10)).save(any(RolePermission.class));
         verify(assignments, never()).save(any(UserRole.class));
         verify(users, never()).save(any(User.class));
     }
@@ -125,9 +157,6 @@ class SecurityBootstrapServiceTests {
     void repeatedBootstrapDoesNotReinsertRolesGrantsOrResetManagementCredentials() {
         Role management = role(1L, SecurityBootstrapService.MANAGEMENT);
         Role gateStaff = role(2L, SecurityBootstrapService.GATE_STAFF);
-        Permission passwordPermission = new Permission();
-        passwordPermission.setId(3L);
-        passwordPermission.setCode(SecurityBootstrapService.CHANGE_OWN_PASSWORD);
         RoleRepository roles = mock(RoleRepository.class);
         PermissionRepository permissions = mock(PermissionRepository.class);
         RolePermissionRepository grants = mock(RolePermissionRepository.class);
@@ -136,8 +165,12 @@ class SecurityBootstrapServiceTests {
         when(roles.findByCode(SecurityBootstrapService.MANAGEMENT)).thenReturn(Optional.of(management));
         when(roles.findByCode(SecurityBootstrapService.GATE_STAFF)).thenReturn(Optional.of(gateStaff));
         when(roles.findAll()).thenReturn(List.of(management, gateStaff));
-        when(permissions.findByCode(SecurityBootstrapService.CHANGE_OWN_PASSWORD))
-                .thenReturn(Optional.of(passwordPermission));
+        when(permissions.findByCode(any())).thenAnswer(call -> {
+            Permission permission = new Permission();
+            permission.setId(3L);
+            permission.setCode(call.getArgument(0));
+            return Optional.of(permission);
+        });
         when(grants.existsById(any(RolePermissionId.class))).thenReturn(true);
         when(assignments.existsByRole_Code(SecurityBootstrapService.MANAGEMENT)).thenReturn(true);
         SecurityBootstrapService bootstrap = new SecurityBootstrapService(

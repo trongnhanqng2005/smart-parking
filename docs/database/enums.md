@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf` — pages 3–6; `CNTT_KLCN101_Tran Van Tho.md`; `Ket_Qua_Khao_Sat_Bai_Xe.md`  
-Implementation status: All 38 enum definitions are represented by Java enums and matching MySQL `ENUM` column literals in `V1__create_approved_schema.sql`; V1 is applied and Hibernate validation succeeds.
+Implementation status: The original 38 ERD enum definitions are represented by Java enums and matching MySQL `ENUM` literals in V1. V4 adds separate membership-status, vehicle-relation-status and guarantor-type mappings as approved AHR-01 project decisions; AHR-11 uses the existing `VOID` literals without a new migration. V4 is applied and Hibernate validation succeeds locally.
 
 ERD định nghĩa **38 enum types** dưới đây. Tên enum và literal được giữ nguyên chính tả/viết hoa. Ý nghĩa state/transition chỉ nêu khi business source chỉ rõ; trường hợp khác ghi đúng **“Detailed transition/business meaning not specified by approved sources.”**
 
@@ -46,7 +46,7 @@ Used by: `apartment_memberships.member_role`
 
 ## `relation_status`
 
-Used by: `apartment_memberships.status`, `vehicle_resident_relations.status`, `card_assignments.status`
+Used by: `card_assignments.status` in the original ERD mapping. V4/AHR-01 gives `apartment_memberships` and `vehicle_resident_relations` table-specific status enums; `card_assignments` retains this shared enum unchanged.
 
 | Value | Meaning from source |
 |---|---|
@@ -62,6 +62,36 @@ Used by: `vehicle_resident_relations.relation_type`
 |---|---|
 | `OWNER` | Chủ sở hữu xe trong quan hệ với cư dân. |
 | `AUTHORIZED_USER` | Người được ủy quyền sử dụng xe; survey yêu cầu người dùng chỉ sử dụng xe đã được ủy quyền. |
+
+## AHR-01 project-level table-specific lifecycle enums (V4; not original ERD enum types)
+
+### `membership_status` — `apartment_memberships.status`
+
+| Value | Meaning from approved project decision |
+|---|---|
+| `ACTIVE` | Membership relation is active or scheduled; effective time is determined by `valid_from`/`valid_to`. |
+| `INACTIVE` | Normally ended; `valid_to` records the effective end and lifecycle metadata records the command/reason. |
+| `REVOKED` | Membership authority was withdrawn; lifecycle metadata records the revoke action while interval invariants remain valid. |
+| `VOID` | AHR-01 status literal; AHR-11 implements created-in-error semantics. History is retained, `valid_from`/`valid_to` are not rewritten, and the row is not physically deleted. This lifecycle meaning is an approved project decision, not an original ERD rule. |
+
+### `vehicle_relation_status` — `vehicle_resident_relations.status`
+
+| Value | Meaning from approved project decision |
+|---|---|
+| `ACTIVE` | Relation is active or scheduled; effective time is determined by `valid_from`/`valid_to`. |
+| `INACTIVE` | Normally ended, including automatic END after guarantor authority is lost after start; effective end is in `valid_to`. |
+| `REVOKED` | Explicit withdrawal of vehicle authority. |
+| `VOID` | AHR-01 status literal; AHR-11 implements created-in-error semantics. History is retained, `valid_from`/`valid_to` are not rewritten, and the row is not physically deleted. This lifecycle meaning is an approved project decision, not an original ERD rule. |
+| `PRE_EFFECTIVE_CANCELLED` | A valid scheduled AUTHORIZED_USER grant lost guarantor authority at or before `valid_from` and never became effective; cancellation time/reason are lifecycle metadata and `valid_to` remains null. |
+
+### `vehicle_relation_guarantor_type` — `vehicle_resident_relations.guarantor_type`
+
+| Value | Meaning from approved project decision |
+|---|---|
+| `OWNER` | Effective vehicle OWNER is the business guarantor. |
+| `HOUSEHOLD_HEAD` | Eligible effective household head is the business guarantor; the grant records its Apartment context. |
+
+V4 table-specific status/guarantor enums are AHR-01 project-level materialization. They do not alter the original `relation_status` literals used by `card_assignments`.
 
 ## `vehicle_status`
 

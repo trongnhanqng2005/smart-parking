@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `CNTT_KLCN101_Tran Van Tho.md`, `Ket_Qua_Khao_Sat_Bai_Xe.md`, repository foundation  
-Implementation status: Backend authentication/RBAC and the server-rendered MANAGEMENT Web foundation (public sign-in and MANAGEMENT-protected application routes) are implemented. Approved NV01–NV08 business workflows remain unimplemented.
+Implementation status: Backend authentication/RBAC, the server-rendered MANAGEMENT Web foundation, and the AHR-03 Apartment, AHR-04 Resident profile, AHR-05 Household Membership, AHR-06 household-head/Apartment lifecycle, AHR-07 Vehicle lookup/OWNER, AHR-08 AUTHORIZED_USER grant/query, AHR-09 VehicleRight lifecycle/guarantor-loss integration, AHR-10 Resident status lifecycle and AHR-11 Membership/VehicleRight VOID API subsets are implemented. The remaining approved NV01–NV08 business workflows are not implemented.
 
 ## Project Objective
 
@@ -13,7 +13,7 @@ Nguồn: `CNTT_KLCN101_Tran Van Tho.md` — Mục tiêu §5; Yêu cầu §6.
 
 | Thành phần | Vai trò theo nguồn | Hiện trạng repository |
 |---|---|---|
-| Spring Boot backend | REST API JSON dùng chung; nghiệp vụ, persistence và kết nối Web/Desktop | Authentication/RBAC, REST authentication và MANAGEMENT Web foundation; chưa có endpoint nghiệp vụ NV01–NV08. |
+| Spring Boot backend | REST API JSON dùng chung; nghiệp vụ, persistence và kết nối Web/Desktop | Authentication/RBAC, REST authentication, MANAGEMENT Web foundation, Apartment and Resident profile APIs, Household Membership lifecycle/head transfer/VOID, Apartment status lifecycle, existing Vehicle lookup/OWNER assignment/transfer, AUTHORIZED_USER grant/query, VehicleRight lifecycle/guarantor-loss/VOID, Resident status lifecycle; remaining NV01–NV08 workflows are not implemented. |
 | Thymeleaf Web management | Giao diện Ban quản lý để quản trị, tra cứu, dashboard và báo cáo | Có trang đăng nhập MANAGEMENT, trang home được bảo vệ và trang bảo mật tài khoản; các màn hình nghiệp vụ NV01–NV08 chưa được triển khai. |
 | C# .NET WinForms gate desktop | Máy trạm trạm gác; kết nối backend, giao tiếp các luồng tại cổng | WinForms form mẫu; project target hiện tại `net10.0-windows`. |
 | Python FastAPI AI service | Dịch vụ AI độc lập cho ANPR/OCR, phân loại xe, face matching và liveness theo yêu cầu | README xác nhận mới có foundation/health; chưa có model hoặc inference. |

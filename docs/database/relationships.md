@@ -2,7 +2,7 @@
 
 Status: Approved specification materialization  
 Source: `ERD.pdf` — pages 1–2 (tables and relationship diagram); `CNTT_KLCN101_Tran Van Tho.md`; `Ket_Qua_Khao_Sat_Bai_Xe.md`  
-Implementation status: ERD foreign keys are mapped by owning-side JPA associations and declared in `V1__create_approved_schema.sql`; all 71 documented FK constraints are applied to local MySQL.
+Implementation status: The original 71 ERD foreign keys are mapped by owning-side JPA associations and declared in V1; they are applied to local MySQL. V4 adds the two approved AHR-01 guarantor/context foreign keys, and V5 adds pending-transition references to VehicleRight and source actor, also applied locally. AHR-11 VOID preserves these relationships and adds no FK.
 
 ## Reading Rules
 
@@ -40,6 +40,24 @@ Implementation status: ERD foreign keys are mapped by owning-side JPA associatio
 | `gate_events.resolved_vehicle_category_id` | `vehicle_categories.id` | Category được resolve trong sự kiện | NV03–06 |
 
 Business meaning của apartment membership và vehicle authorization xem [NV01](../business/nv01-resident-vehicle-registration.md). Vehicle relation không thay thế membership.
+
+### AHR-01 project-level persistence additions (not original ERD relationships)
+
+| Source table.field | Target | Semantic relationship | Provenance |
+|---|---|---|---|
+| `vehicle_resident_relations.guarantor_resident_id` | `residents.id` | Business guarantor for an AUTHORIZED_USER relation; distinct from the system actor recorded by audit | Approved AHR-01 project decision, materialized in V4 |
+| `vehicle_resident_relations.guarantor_apartment_id` | `apartments.id` | Apartment context for a HOUSEHOLD_HEAD guarantor chain | Approved AHR-01 project decision, materialized in V4 |
+
+The V4 guarantor/context foreign keys use restrictive deletion behavior to preserve relation history. Canonical identity-key fields are not foreign keys. These additions are not original `ERD.pdf` connectors.
+
+### AHR review-remediation persistence additions (V5; not original ERD relationships)
+
+| Source table.field | Target | Semantic relationship | Provenance |
+|---|---|---|---|
+| `vehicle_right_pending_transitions.vehicle_right_id` | `vehicle_resident_relations.id` | One pending future terminal transition for a VehicleRight | Approved AHR review-remediation decision, materialized in V5; restrictive FK |
+| `vehicle_right_pending_transitions.source_actor_user_id` | `users.id` | Actor whose source command scheduled the transition | Approved AHR review-remediation decision, materialized in V5; restrictive FK |
+
+These pending-transition links are project-level remediation, not original ERD relationships.
 
 ## Card
 

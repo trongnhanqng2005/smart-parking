@@ -1,10 +1,13 @@
 import "../../css/app.css";
 import { Building2, createIcons, KeyRound, LogOut, ShieldCheck, UserRound } from "lucide";
 import { bootstrapTheme } from "./theme-preference.js";
+import { bindRegistrationFeedback } from "./registration-feedback.js";
 
 bootstrapTheme(document, window, getComputedStyle);
 
 if (document.body.dataset.shell === "authenticated") {
+  bindRegistrationFeedback(document);
+
   const headerActions = document.querySelector(".app-header__actions");
   if (headerActions) createIcons({ icons: { KeyRound, LogOut }, root: headerActions });
 

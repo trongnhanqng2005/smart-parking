@@ -13,9 +13,11 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import vn.edu.huit.smartparking.backend.common.persistence.enums.RelationStatus;
+import vn.edu.huit.smartparking.backend.resident.entity.Apartment;
 import vn.edu.huit.smartparking.backend.resident.entity.Resident;
+import vn.edu.huit.smartparking.backend.vehicle.enums.VehicleRelationGuarantorType;
 import vn.edu.huit.smartparking.backend.vehicle.enums.VehicleRelationType;
+import vn.edu.huit.smartparking.backend.vehicle.enums.VehicleRelationStatus;
 
 @Entity
 @Table(name = "vehicle_resident_relations")
@@ -37,6 +39,21 @@ public class VehicleResidentRelation {
 
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.ENUM)
+    @Column(name = "guarantor_type")
+    private VehicleRelationGuarantorType guarantorType;
+
+    @ManyToOne
+    @JoinColumn(name = "guarantor_resident_id", foreignKey = @jakarta.persistence.ForeignKey(
+            name = "fk_vehicle_relation_guarantor_resident"))
+    private Resident guarantorResident;
+
+    @ManyToOne
+    @JoinColumn(name = "guarantor_apartment_id", foreignKey = @jakarta.persistence.ForeignKey(
+            name = "fk_vehicle_relation_guarantor_apartment"))
+    private Apartment guarantorApartment;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.ENUM)
     @Column(name = "relation_type")
     private VehicleRelationType relationType;
 
@@ -49,7 +66,13 @@ public class VehicleResidentRelation {
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.ENUM)
     @Column(name = "status")
-    private RelationStatus status;
+    private VehicleRelationStatus status;
+
+    @Column(name = "lifecycle_changed_at")
+    private LocalDateTime lifecycleChangedAt;
+
+    @Column(name = "lifecycle_reason", length = 500)
+    private String lifecycleReason;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

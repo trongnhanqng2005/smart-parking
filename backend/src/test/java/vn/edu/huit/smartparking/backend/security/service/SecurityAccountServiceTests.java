@@ -1,12 +1,14 @@
 package vn.edu.huit.smartparking.backend.security.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import vn.edu.huit.smartparking.backend.security.entity.Permission;
@@ -92,11 +94,58 @@ class SecurityAccountServiceTests {
                 .anyMatch(authority -> authority.getAuthority().equals("GATE_OPERATION")));
     }
 
+    @Test
+    void managementReceivesCurrentDatabasePermissionsOnEachLoad() {
+        UserRepository users = mock(UserRepository.class);
+        UserRoleRepository assignments = mock(UserRoleRepository.class);
+        RolePermissionRepository grants = mock(RolePermissionRepository.class);
+        RoleRepository roles = mock(RoleRepository.class);
+        Role management = role(2L, "MANAGEMENT");
+        Role gateStaff = role(3L, "GATE_STAFF");
+        UserRole assignment = new UserRole();
+        assignment.setRole(management);
+        when(users.findById(1L)).thenReturn(Optional.of(user()));
+        when(assignments.findAllByUser_Id(1L)).thenReturn(List.of(assignment));
+        when(roles.findByCode("GATE_STAFF")).thenReturn(Optional.of(gateStaff));
+        when(grants.findAllByRole_Id(2L)).thenReturn(
+                List.of(grant("APARTMENT_READ")), List.of(grant("APARTMENT_MANAGE")));
+        when(grants.findAllByRole_Id(3L)).thenReturn(List.of());
+        SecurityAccountService service = new SecurityAccountService(users, assignments, grants, roles);
+
+        AuthenticatedAccount beforeGrantChange = service.loadUserById(1L);
+        AuthenticatedAccount afterGrantChange = service.loadUserById(1L);
+
+        assertTrue(hasAuthority(beforeGrantChange, "APARTMENT_READ"));
+        assertFalse(hasAuthority(beforeGrantChange, "APARTMENT_MANAGE"));
+        assertTrue(hasAuthority(afterGrantChange, "APARTMENT_MANAGE"));
+        assertFalse(hasAuthority(afterGrantChange, "APARTMENT_READ"));
+    }
+
     private User user() {
         User user = new User();
         user.setId(1L);
         user.setUsername("operator");
         user.setStatus(UserStatus.ACTIVE);
         return user;
+    }
+
+    private Role role(Long id, String code) {
+        Role role = new Role();
+        role.setId(id);
+        role.setCode(code);
+        return role;
+    }
+
+    private RolePermission grant(String permissionCode) {
+        Permission permission = new Permission();
+        permission.setCode(permissionCode);
+        RolePermission grant = new RolePermission();
+        grant.setPermission(permission);
+        return grant;
+    }
+
+    private boolean hasAuthority(AuthenticatedAccount account, String authority) {
+        return account.getAuthorities().stream()
+                .anyMatch(granted -> authority.equals(granted.getAuthority()));
     }
 }
